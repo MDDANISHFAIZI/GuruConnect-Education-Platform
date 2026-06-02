@@ -19,7 +19,7 @@ export const getProfilePhotoUrl = (photoPath) => {
   }
   
   // If it's a relative path starting with /uploads/ (or similar), prepend backend domain
-  const backendBaseUrl = 'http://localhost:5000';
+  const backendBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const cleanedPath = photoPath.startsWith('/') ? photoPath : `/${photoPath}`;
   return `${backendBaseUrl}${cleanedPath}`;
 };

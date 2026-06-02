@@ -8,7 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Set default API base URL (falls back to local port 5000 in dev)
-  axios.defaults.baseURL = 'http://localhost:5000';
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
   // Axios request interceptor to append JWT token
   useEffect(() => {

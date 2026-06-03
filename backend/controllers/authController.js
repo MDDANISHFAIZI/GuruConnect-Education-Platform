@@ -64,7 +64,9 @@ export const registerUser = async (req, res) => {
       // If student, create empty student profile
       if (role === 'student') {
         await Student.create({
-          user: user._id
+          user: user._id,
+          profilePhoto: processedPhoto,
+          profileImage: processedPhoto
         });
       }
       
@@ -72,6 +74,8 @@ export const registerUser = async (req, res) => {
       if (role === 'teacher') {
         await Teacher.create({
           user: user._id,
+          profilePhoto: processedPhoto,
+          profileImage: processedPhoto,
           subjects: ['Pending General Subjects'],
           classes: ['All'],
           fees: 500,
@@ -92,6 +96,8 @@ export const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profilePhoto: user.profilePhoto,
+        profileImage: user.profileImage,
         token: generateToken(user._id, user.role)
       });
     } else {
@@ -153,6 +159,8 @@ export const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profilePhoto: user.profilePhoto,
+        profileImage: user.profileImage,
         token: generateToken(user._id, user.role)
       });
     } else {

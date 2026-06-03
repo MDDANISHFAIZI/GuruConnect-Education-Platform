@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { 
   MapPin, Search, BookOpen, ClipboardCheck, Sparkles, HeartHandshake, 
   ShieldCheck, Navigation, Loader2, Compass, Phone, Mail, Instagram, 
@@ -637,6 +639,7 @@ const styleBlock = (
 const LandingPage = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   // Location selector states
   const [searchQuery, setSearchQuery] = useState('');
@@ -919,69 +922,160 @@ const LandingPage = () => {
 
       {/* Dual Role Onboarding Portal cards */}
       <section className="relative pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left relative z-20">
-          
-          {/* Card 1: Student/Parent Registration Portal */}
-          <motion.div 
+        {user ? (
+          /* Premium Authenticated Welcome Section */
+          <motion.div
             initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="bg-white/70 backdrop-blur-md border border-slate-200/60 rounded-[32px] p-8 shadow-premium hover:shadow-[0_20px_50px_rgba(79,70,229,0.12)] hover:border-brand-300 transition-all duration-500 flex flex-col justify-between group relative overflow-hidden"
+            className="bg-white/70 backdrop-blur-md border border-slate-200/60 rounded-[32px] p-8 md:p-12 shadow-premium hover:shadow-[0_20px_50px_rgba(79,70,229,0.12)] hover:border-brand-300 transition-all duration-500 max-w-2xl mx-auto text-center relative overflow-hidden group z-20"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-brand-500/10 to-indigo-500/10 rounded-bl-[100px] -z-10 group-hover:scale-125 transition-transform duration-500"></div>
-            <div className="space-y-4">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <span className="text-2xl">👨‍🎓</span>
+            {/* Ambient background glows */}
+            <div className="absolute top-0 right-0 w-28 h-28 bg-gradient-to-tr from-brand-500/10 to-indigo-500/10 rounded-bl-[100px] -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+            
+            <div className="flex flex-col items-center space-y-6">
+              
+              {/* Profile Photo / Avatar Widget */}
+              <div className="h-24 w-24 rounded-full border-4 border-white shadow-lg overflow-hidden flex items-center justify-center shrink-0 bg-slate-50">
+                {getProfilePhotoUrl(user.profilePhoto || user.profileImage) ? (
+                  <img 
+                    src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} 
+                    alt={user.name} 
+                    className="h-full w-full object-cover" 
+                    onError={handleProfileImageError}
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
+                    <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                )}
               </div>
-              <h3 className="font-outfit font-black text-2xl text-slate-900 flex items-center gap-2 group-hover:text-brand-600 transition-colors">
-                Student / Parent
-              </h3>
-              <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-                Find neighborhood tuition centers, track monthly attendance records, view payment ledgers, and download homework resources instantly.
-              </p>
-            </div>
-            <div className="pt-8">
-              <Link
-                to="/signup/student"
-                className="w-full inline-flex items-center justify-center bg-gradient-to-r from-brand-500 via-indigo-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-outfit font-black text-sm px-6 py-4 rounded-2xl shadow-md hover:shadow-[0_8px_20px_rgba(79,70,229,0.25)] transition-all duration-300 active:scale-95 text-center cursor-pointer"
-              >
-                Sign Up as Student / Parent
-              </Link>
+
+              {/* Greeting */}
+              <div className="space-y-2">
+                <span className={`inline-block text-[10px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border ${
+                  user.role === 'teacher' ? 'bg-orange-50 border-orange-200 text-orange-600' : 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                }`}>
+                  {user.role === 'teacher' ? '🎓 Certified Teacher' : '🎒 Enrolled Student'}
+                </span>
+                <h3 className="font-outfit font-black text-2xl sm:text-3xl text-slate-900 leading-none">
+                  Welcome back, {user.name}!
+                </h3>
+                <p className="text-slate-500 text-sm font-semibold max-w-md mx-auto leading-relaxed">
+                  You have an active session. Jump directly into your classroom registry, notes, billing receipts, and attendance logs.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full max-w-md pt-2">
+                <Link
+                  to={user.role === 'teacher' ? '/teacher' : '/student'}
+                  className="w-full sm:flex-1 inline-flex items-center justify-center bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-outfit font-black text-sm px-6 py-4 rounded-2xl shadow-md hover:shadow-[0_8px_20px_rgba(79,70,229,0.25)] transition-all duration-300 active:scale-95 text-center cursor-pointer"
+                >
+                  {user.role === 'teacher' ? 'Go To Teacher Dashboard' : 'Go To Student Dashboard'}
+                </Link>
+                
+                <Link
+                  to="/profile"
+                  className="w-full sm:w-auto inline-flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 font-outfit font-black text-sm px-6 py-4 border border-slate-200 rounded-2xl transition-all duration-300 active:scale-95 text-center cursor-pointer"
+                >
+                  My Profile
+                </Link>
+
+                <button
+                  onClick={logout}
+                  className="w-full sm:w-auto inline-flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 font-outfit font-black text-sm px-6 py-4 border border-rose-100 rounded-2xl transition-all duration-300 active:scale-95 text-center cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+
             </div>
           </motion.div>
-
-          {/* Card 2: Teacher Portal Onboarding */}
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-            className="bg-white/70 backdrop-blur-md border border-slate-200/60 rounded-[32px] p-8 shadow-premium hover:shadow-[0_20px_50px_rgba(249,115,22,0.12)] hover:border-orange-300 transition-all duration-500 flex flex-col justify-between group relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-orange-500/10 to-amber-500/10 rounded-bl-[100px] -z-10 group-hover:scale-125 transition-transform duration-500"></div>
-            <div className="space-y-4">
-              <div className="h-12 w-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <span className="text-2xl">👨‍🏫</span>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto text-left relative z-20">
+            
+            {/* Card 1: Student/Parent Registration Portal */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="bg-white/70 backdrop-blur-md border border-slate-200/60 rounded-[32px] p-8 shadow-premium hover:shadow-[0_20px_50px_rgba(79,70,229,0.12)] hover:border-brand-300 transition-all duration-500 flex flex-col justify-between group relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-brand-500/10 to-indigo-500/10 rounded-bl-[100px] -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+              <div className="space-y-4">
+                <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <span className="text-2xl">👨‍🎓</span>
+                </div>
+                <h3 className="font-outfit font-black text-2xl text-slate-900 flex items-center gap-2 group-hover:text-brand-600 transition-colors">
+                  Student / Parent
+                </h3>
+                <p className="text-slate-500 text-sm font-semibold leading-relaxed">
+                  Find neighborhood tuition centers, track monthly attendance records, view payment ledgers, and download homework resources instantly.
+                </p>
               </div>
-              <h3 className="font-outfit font-black text-2xl text-slate-900 flex items-center gap-2 group-hover:text-orange-600 transition-colors">
-                Become a Tutor
-              </h3>
-              <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-                Establish your neighborhood brand, onboard local students, mark daily attendance registers, track payments, and publish files online.
-              </p>
-            </div>
-            <div className="pt-8">
-              <Link
-                to="/signup/teacher"
-                className="w-full inline-flex items-center justify-center bg-gradient-to-r from-orange-500 via-amber-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-outfit font-black text-sm px-6 py-4 rounded-2xl shadow-md hover:shadow-[0_8px_20px_rgba(249,115,22,0.25)] transition-all duration-300 active:scale-95 text-center cursor-pointer"
+              <div className="pt-8">
+                <Link
+                  to="/signup/student"
+                  className="w-full inline-flex items-center justify-center bg-gradient-to-r from-brand-500 via-indigo-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-outfit font-black text-sm px-6 py-4 rounded-2xl shadow-md hover:shadow-[0_8px_20px_rgba(79,70,229,0.25)] transition-all duration-300 active:scale-95 text-center cursor-pointer"
+                >
+                  Sign Up as Student
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Card 2: Teacher Portal Onboarding */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.15 }}
+              className="bg-white/70 backdrop-blur-md border border-slate-200/60 rounded-[32px] p-8 shadow-premium hover:shadow-[0_20px_50px_rgba(249,115,22,0.12)] hover:border-orange-300 transition-all duration-500 flex flex-col justify-between group relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-orange-500/10 to-amber-500/10 rounded-bl-[100px] -z-10 group-hover:scale-125 transition-transform duration-500"></div>
+              <div className="space-y-4">
+                <div className="h-12 w-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                  <span className="text-2xl">👨‍🏫</span>
+                </div>
+                <h3 className="font-outfit font-black text-2xl text-slate-900 flex items-center gap-2 group-hover:text-orange-600 transition-colors">
+                  Become a Tutor
+                </h3>
+                <p className="text-slate-500 text-sm font-semibold leading-relaxed">
+                  Establish your neighborhood brand, onboard local students, mark daily attendance registers, track payments, and publish files online.
+                </p>
+              </div>
+              <div className="pt-8">
+                <Link
+                  to="/signup/teacher"
+                  className="w-full inline-flex items-center justify-center bg-gradient-to-r from-orange-500 via-amber-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-outfit font-black text-sm px-6 py-4 rounded-2xl shadow-md hover:shadow-[0_8px_20px_rgba(249,115,22,0.25)] transition-all duration-300 active:scale-95 text-center cursor-pointer"
+                >
+                  Sign Up as Teacher
+                </Link>
+              </div>
+            </motion.div>
+
+            {/* Center aligned Login links for guests */}
+            <div className="col-span-1 md:col-span-2 text-center pt-8 text-sm font-semibold text-slate-500">
+              <span className="text-slate-400">Already registered?</span>{' '}
+              <Link 
+                to="/login/student" 
+                className="font-extrabold text-brand-600 hover:text-brand-700 hover:underline mx-1.5 transition-all inline-flex items-center gap-1 bg-white px-3.5 py-1.5 rounded-full border border-slate-100 shadow-sm"
               >
-                🎓 Become a Tutor
+                🎒 Student Login
+              </Link>
+              <Link 
+                to="/login/teacher" 
+                className="font-extrabold text-orange-600 hover:text-orange-700 hover:underline mx-1.5 transition-all inline-flex items-center gap-1 bg-white px-3.5 py-1.5 rounded-full border border-slate-100 shadow-sm"
+              >
+                🎓 Teacher Login
               </Link>
             </div>
-          </motion.div>
 
-        </div>
+          </div>
+        )}
       </section>
  
       {/* How it Works Section */}

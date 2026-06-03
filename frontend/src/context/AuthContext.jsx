@@ -4,11 +4,28 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    try {
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (e) {
+      console.error('Failed to parse stored user:', e);
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   // Set default API base URL (falls back to local port 5000 in dev)
   axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  // Sync user state changes to localStorage
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
+  }, [user]);
 
   // Axios request interceptor to append JWT token
   useEffect(() => {

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { 
   User, Mail, Phone, MapPin, Award, BookOpen, Clock, 
   DollarSign, Briefcase, GraduationCap, Edit3, X, 
@@ -346,6 +346,7 @@ const ProfilePage = () => {
                     src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} 
                     alt={user.name} 
                     className="h-full w-full object-cover" 
+                    onError={handleProfileImageError}
                   />
                 ) : (
                   <div className="h-full w-full flex flex-col items-center justify-center text-white/95">
@@ -773,7 +774,7 @@ const ProfilePage = () => {
                   {/* Photo Preview / Circular */}
                   <div className="h-20 w-20 bg-white border border-slate-200 rounded-full overflow-hidden flex items-center justify-center shrink-0 shadow-md">
                     {getProfilePhotoUrl(profilePhoto) ? (
-                      <img src={getProfilePhotoUrl(profilePhoto)} alt="Avatar" className="h-full w-full object-cover" />
+                      <img src={getProfilePhotoUrl(profilePhoto)} alt="Avatar" className="h-full w-full object-cover" onError={handleProfileImageError} />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
                         <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor">

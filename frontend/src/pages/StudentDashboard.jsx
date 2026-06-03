@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import StarRating from '../components/StarRating';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 
 const StudentDashboard = () => {
   const { t, i18n } = useTranslation();
@@ -306,7 +306,7 @@ const StudentDashboard = () => {
   const renderProfilePhoto = (photoPath, className = "w-10 h-10 rounded-full object-cover border border-slate-200") => {
     const formattedUrl = getProfilePhotoUrl(photoPath);
     if (formattedUrl) {
-      return <img src={formattedUrl} alt="Profile" className={className} />;
+      return <img src={formattedUrl} alt="Profile" className={className} onError={handleProfileImageError} />;
     }
     return (
       <div className={`${className} bg-slate-100 flex items-center justify-center text-slate-400`}>

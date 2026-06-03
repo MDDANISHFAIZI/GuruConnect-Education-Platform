@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { 
   Globe, Menu, X, LogOut, User, ChevronDown, 
   Settings, BookOpen, Users, ClipboardCheck, 
@@ -139,6 +139,7 @@ const Navbar = () => {
                         src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} 
                         alt={user.name} 
                         className="h-full w-full object-cover" 
+                        onError={handleProfileImageError}
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
@@ -166,7 +167,7 @@ const Navbar = () => {
                     <div className="bg-slate-50/50 border border-slate-100/50 p-3 rounded-2xl flex items-center space-x-3">
                       <div className="h-12 w-12 rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-white shadow-sm bg-slate-50">
                         {getProfilePhotoUrl(user.profilePhoto || user.profileImage) ? (
-                          <img src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} alt={user.name} className="h-full w-full object-cover" />
+                          <img src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} alt={user.name} className="h-full w-full object-cover" onError={handleProfileImageError} />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
                             <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -386,7 +387,7 @@ const Navbar = () => {
                 <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex items-center space-x-3">
                   <div className="h-12 w-12 rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-white shadow-sm bg-slate-50">
                     {getProfilePhotoUrl(user.profilePhoto || user.profileImage) ? (
-                      <img src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} alt={user.name} className="h-full w-full object-cover" />
+                      <img src={getProfilePhotoUrl(user.profilePhoto || user.profileImage)} alt={user.name} className="h-full w-full object-cover" onError={handleProfileImageError} />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
                         <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">

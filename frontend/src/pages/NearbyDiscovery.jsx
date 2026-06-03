@@ -7,7 +7,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import { MapPin, Search, SlidersHorizontal, BookOpen, Clock, Phone, Navigation, AlertCircle, X, Sparkles, Send, Map, Loader2, Compass } from 'lucide-react';
 import StarRating from '../components/StarRating';
 import { useAuth } from '../context/AuthContext';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 
 // Custom Leaflet DivIcons to prevent broken bundling assets
 const userIcon = L.divIcon({
@@ -712,7 +712,7 @@ const NearbyDiscovery = () => {
               >
                 <div className="h-16 w-16 rounded-2xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
                   {getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage) ? (
-                    <img src={getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage)} alt={teacher.user.name} className="h-full w-full object-cover" />
+                    <img src={getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage)} alt={teacher.user.name} className="h-full w-full object-cover" onError={handleProfileImageError} />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
                       <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">

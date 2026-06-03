@@ -4,7 +4,15 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Instagram, Linkedin, Mail } from 'lucide-react';
 
 const CreatorPage = () => {
-  const [imgLoaded, setImgLoaded] = useState(true);
+  const [imgSrc, setImgSrc] = useState('/images/finalphotoforweb.jpeg');
+
+  const handleImgError = () => {
+    if (imgSrc === '/images/finalphotoforweb.jpeg') {
+      setImgSrc('/finalphotoforweb.jpeg');
+    } else {
+      setImgSrc(null);
+    }
+  };
 
   // Scroll to top on mount
   useEffect(() => {
@@ -82,12 +90,12 @@ const CreatorPage = () => {
 
               {/* Image with fallback vector illustration */}
               <div className="w-full h-full relative z-10 rounded-full overflow-hidden border border-white/10 bg-slate-950 shadow-lg flex items-center justify-center">
-                {imgLoaded ? (
+                {imgSrc ? (
                   <img
-                    src="/finalphotoforweb.jpeg"
+                    src={imgSrc}
                     alt="Md Danish Faizi Ansari"
                     className="w-full h-full object-cover"
-                    onError={() => setImgLoaded(false)}
+                    onError={handleImgError}
                   />
                 ) : (
                   <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">

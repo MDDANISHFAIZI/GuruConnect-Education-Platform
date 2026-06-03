@@ -24,14 +24,18 @@ export const saveBase64Image = (base64Str) => {
     return base64Str;
   }
 
-  // Verify that it is a base64 Data URL
-  if (!base64Str.startsWith('data:image')) {
-    return '';
+  // If it's a base64 Data URL, store it directly in MongoDB to prevent image loss
+  // on ephemeral server filesystems (like Render free tier).
+  if (base64Str.startsWith('data:')) {
+    console.log(`[PROFILE IMAGE] Storing base64 image directly in database for persistent deployment. Data length: ${base64Str.length}`);
+    return base64Str;
   }
 
   try {
     const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
     if (!matches || matches.length !== 3) {
+      // If it doesn't match standard base64 pattern but is not a URL, let's check if it's base64 without prefix
+      // If so, return it as a data URL, or try saving it.
       throw new Error('Malformed base64 image payload');
     }
 
@@ -47,17 +51,11 @@ export const saveBase64Image = (base64Str) => {
       extension = 'webp';
     } else if (format.includes('jpeg') || format.includes('jpg')) {
       extension = 'jpg';
-    } else {
-      console.warn(`Unsupported file format detected: ${format}. Defaulting to JPG.`);
     }
 
     const uniqueName = `profile_${Date.now()}_${Math.round(Math.random() * 1E9)}.${extension}`;
-    
-    // We target backend/public/uploads
-    // __dirname is backend/utils, so go up one level to backend, then public/uploads
     const uploadDir = path.join(__dirname, '..', 'public', 'uploads');
 
-    // Ensure the folder exists on disk
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -65,10 +63,14 @@ export const saveBase64Image = (base64Str) => {
     const absolutePath = path.join(uploadDir, uniqueName);
     fs.writeFileSync(absolutePath, buffer);
 
-    console.log(`[PROFILE IMAGE SAVED] File successfully written to: ${absolutePath}`);
+    console.log(`[PROFILE IMAGE SAVED] File written locally as fallback: ${absolutePath}`);
     return `/uploads/${uniqueName}`;
   } catch (error) {
     console.error('[IMAGE UPLOAD ERROR] Failed to parse base64 image:', error);
+    // If it's some other non-standard base64 string, return it as-is rather than failing
+    if (base64Str.length > 1000) {
+      return base64Str;
+    }
     return '';
   }
 };

@@ -5,7 +5,7 @@ import axios from 'axios';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
 import { User, ClipboardCheck, DollarSign, MapPin, Navigation, Save, Trash2, Calendar, AlertCircle, UserPlus, Check, X, Inbox, Eye, BookOpen, MessageSquare, Phone, Clock, Users, CheckCircle, PlusCircle, Activity, Download } from 'lucide-react';
 
@@ -1288,6 +1288,7 @@ const TeacherDashboard = () => {
                                             src={getProfilePhotoUrl(record.student?.user?.profilePhoto || record.student?.user?.profileImage || record.student?.profilePhoto || record.student?.profileImage)} 
                                             alt={record.name} 
                                             className="h-full w-full object-cover" 
+                                            onError={handleProfileImageError}
                                           />
                                         ) : (
                                           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -2170,6 +2171,7 @@ const TeacherDashboard = () => {
                                       src={getProfilePhotoUrl(r.student?.user?.profilePhoto || r.student?.user?.profileImage || r.student?.profilePhoto || r.student?.profileImage)} 
                                       alt={studentName} 
                                       className="h-full w-full object-cover" 
+                                      onError={handleProfileImageError}
                                     />
                                   ) : (
                                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">

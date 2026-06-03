@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { ArrowLeft, MapPin, Award, CheckCircle, ShieldCheck, MessageCircle, AlertCircle, Sparkles, Send, X, Loader2, Clock } from 'lucide-react';
 import StarRating from '../components/StarRating';
 
@@ -180,7 +180,7 @@ const TeacherProfile = () => {
           {/* Avatar */}
           <div className="h-24 w-24 rounded-3xl bg-slate-50 border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
             {getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage) ? (
-              <img src={getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage)} alt={teacher.user.name} className="h-full w-full object-cover" />
+              <img src={getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage)} alt={teacher.user.name} className="h-full w-full object-cover" onError={handleProfileImageError} />
             ) : (
               <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
                 <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor">

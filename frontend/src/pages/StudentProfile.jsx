@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
-import { getProfilePhotoUrl } from '../utils/image';
+import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { 
   ArrowLeft, User, Phone, Mail, MapPin, GraduationCap, School, 
   BookOpen, Award, CheckCircle, Clock, AlertCircle 
@@ -128,7 +128,7 @@ const StudentProfile = () => {
           {/* Avatar Block */}
           <div className="w-20 h-20 rounded-3xl bg-slate-800 border-4 border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
             {getProfilePhotoUrl(student?.profilePhoto || student?.profileImage || student?.user?.profilePhoto || student?.user?.profileImage) ? (
-              <img src={getProfilePhotoUrl(student.profilePhoto || student.profileImage || student.user?.profilePhoto || student.user?.profileImage)} alt={name} className="h-full w-full object-cover" />
+              <img src={getProfilePhotoUrl(student.profilePhoto || student.profileImage || student.user?.profilePhoto || student.user?.profileImage)} alt={name} className="h-full w-full object-cover" onError={handleProfileImageError} />
             ) : (
               <div className="h-full w-full flex items-center justify-center bg-slate-800 text-slate-400">
                 <svg className="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor">

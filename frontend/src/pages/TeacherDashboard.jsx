@@ -39,6 +39,10 @@ const TeacherDashboard = () => {
   const [phone, setPhone] = useState('');
   const [subjects, setSubjects] = useState('');
   const [classes, setClasses] = useState('');
+  const [teachesFrom, setTeachesFrom] = useState(1);
+  const [teachesTo, setTeachesTo] = useState(12);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [annTarget, setAnnTarget] = useState('All');
   const [fees, setFees] = useState(500);
   const [timings, setTimings] = useState('');
   const [qualification, setQualification] = useState('');
@@ -122,13 +126,24 @@ const TeacherDashboard = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
+  
+  // Helper to generate teacher's classes list
+  const getTeacherClassesList = () => {
+    const list = [];
+    const from = teachesFrom || 1;
+    const to = teachesTo || 12;
+    for (let c = from; c <= to; c++) {
+      list.push(`Class ${c}`);
+    }
+    return list;
+  };
 
   const [teacherConnections, setTeacherConnections] = useState([]);
 
   // Fetch Classroom Sub-system datasets
   const fetchUploadedNotes = async () => {
     try {
-      const { data } = await axios.get('/api/classroom/notes/teacher');
+      const { data } = await axios.get(`/api/classroom/notes/teacher?class=${selectedClass}`);
       setUploadedNotes(data || []);
     } catch (err) {
       console.error(err);
@@ -137,7 +152,7 @@ const TeacherDashboard = () => {
 
   const fetchDoubts = async () => {
     try {
-      const { data } = await axios.get('/api/classroom/doubts/teacher');
+      const { data } = await axios.get(`/api/classroom/doubts/teacher?class=${selectedClass}`);
       setDoubts(data || []);
     } catch (err) {
       console.error(err);
@@ -146,7 +161,7 @@ const TeacherDashboard = () => {
 
   const fetchHomeworks = async () => {
     try {
-      const { data } = await axios.get('/api/classroom/homework/teacher');
+      const { data } = await axios.get(`/api/classroom/homework/teacher?class=${selectedClass}`);
       setHomeworks(data || []);
     } catch (err) {
       console.error(err);
@@ -155,7 +170,7 @@ const TeacherDashboard = () => {
 
   const fetchAnnouncements = async () => {
     try {
-      const { data } = await axios.get('/api/classroom/announcements/teacher');
+      const { data } = await axios.get(`/api/classroom/announcements/teacher?class=${selectedClass}`);
       setAnnouncements(data || []);
     } catch (err) {
       console.error(err);
@@ -179,7 +194,8 @@ const TeacherDashboard = () => {
       await axios.post('/api/classroom/notes', {
         title: noteTitle,
         fileUrl: noteFileUrl,
-        fileType: noteFileType
+        fileType: noteFileType,
+        class: selectedClass
       });
       triggerAlert('PDF / Study Note uploaded successfully!', 'success');
       setNoteTitle('');
@@ -223,7 +239,8 @@ const TeacherDashboard = () => {
       await axios.post('/api/classroom/homework', {
         title: hwTitle,
         description: hwDescription,
-        deadline: hwDeadline
+        deadline: hwDeadline,
+        class: selectedClass
       });
       triggerAlert('Homework / Assignment posted!', 'success');
       setHwTitle('');
@@ -251,7 +268,8 @@ const TeacherDashboard = () => {
     try {
       await axios.post('/api/classroom/announcements', {
         title: annTitle,
-        content: annContent
+        content: annContent,
+        class: annTarget
       });
       triggerAlert('Tuition announcement posted!', 'success');
       setAnnTitle('');
@@ -297,7 +315,7 @@ const TeacherDashboard = () => {
       fetchAnnouncements();
       fetchTeacherConnections();
     }
-  }, [activeTab, classroomHubTab]);
+  }, [activeTab, classroomHubTab, selectedClass]);
 
   useEffect(() => {
     // Support deep-linking tabs from the Profile dropdown
@@ -317,6 +335,11 @@ const TeacherDashboard = () => {
         setPhone(data.user.phone);
         setSubjects(data.subjects.join(', '));
         setClasses(data.classes.join(', '));
+        setTeachesFrom(data.teachesFrom !== undefined ? data.teachesFrom : 1);
+        setTeachesTo(data.teachesTo !== undefined ? data.teachesTo : 12);
+        if (!selectedClass) {
+          setSelectedClass(`Class ${data.teachesFrom !== undefined ? data.teachesFrom : 1}`);
+        }
         setFees(data.fees);
         setTimings(data.timings);
         setQualification(data.qualification);
@@ -587,7 +610,8 @@ const TeacherDashboard = () => {
         name,
         phone,
         subjects,
-        classes,
+        teachesFrom: Number(teachesFrom),
+        teachesTo: Number(teachesTo),
         fees,
         timings,
         qualification,
@@ -900,15 +924,31 @@ const TeacherDashboard = () => {
                       className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.classesTaught')}</label>
-                    <input
-                      type="text"
-                      value={classes}
-                      onChange={(e) => setClasses(e.target.value)}
-                      placeholder={t('dashboard.teacher.classesPlaceholder')}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
+                  <div className="space-y-1.5 grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-400">From Class</label>
+                      <select
+                        value={teachesFrom}
+                        onChange={(e) => setTeachesFrom(Number(e.target.value))}
+                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
+                      >
+                        {[...Array(12)].map((_, i) => (
+                          <option key={i + 1} value={i + 1}>Class {i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-400">To Class</label>
+                      <select
+                        value={teachesTo}
+                        onChange={(e) => setTeachesTo(Number(e.target.value))}
+                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
+                      >
+                        {[...Array(12)].map((_, i) => (
+                          <option key={i + 1} value={i + 1}>Class {i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.feesLabel')}</label>
@@ -1603,6 +1643,52 @@ const TeacherDashboard = () => {
                 </div>
               </div>
 
+              {/* Class Selector Dropdown */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Classroom Class Filter</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                  >
+                    {getTeacherClassesList().map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Class Attendance Stats Cards */}
+              {(() => {
+                const classStudents = enrollments.filter(e => e.status === 'active' && e.class === selectedClass);
+                const totalInClass = classStudents.length;
+                const presents = classStudents.filter(s => attendanceStatuses[s._id] === 'present').length;
+                const absents = totalInClass - presents;
+                const rate = totalInClass > 0 ? Math.round((presents / totalInClass) * 100) : 100;
+                
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-slate-400">Class Students</span>
+                      <p className="font-outfit font-black text-xl text-slate-800 mt-1">{totalInClass}</p>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-emerald-600">Present Today</span>
+                      <p className="font-outfit font-black text-xl text-emerald-700 mt-1">{presents}</p>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-100 p-4 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-rose-600">Absent Today</span>
+                      <p className="font-outfit font-black text-xl text-rose-700 mt-1">{absents}</p>
+                    </div>
+                    <div className="bg-brand-50 border border-brand-100 p-4 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-brand-600">Attendance Rate</span>
+                      <p className="font-outfit font-black text-xl text-brand-700 mt-1">{rate}%</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Attendance Form */}
               <form onSubmit={handleSaveBulkAttendance} className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center bg-slate-50 p-4 rounded-3xl border border-slate-100">
@@ -1642,11 +1728,11 @@ const TeacherDashboard = () => {
                     {i18n.language === 'hi' ? 'सक्रिय छात्र उपस्थिति सूची' : 'Active Students Attendance List'}
                   </h4>
 
-                  {enrollments.filter(e => e.status === 'active').length === 0 ? (
+                  {enrollments.filter(e => e.status === 'active' && e.class === selectedClass).length === 0 ? (
                     <div className="p-8 text-center text-slate-400 font-medium bg-slate-50 border border-slate-100 rounded-3xl text-xs">
                       {i18n.language === 'hi' 
                         ? 'कोई सक्रिय छात्र नहीं मिले। कृपया छात्र प्रबंधन टैब में छात्रों को नामांकित करें।' 
-                        : 'No active students found in your roster. Please activate pending applicants or manually enroll offline students first.'}
+                        : `No active students found in ${selectedClass}. Please activate pending applicants or manually enroll offline students first.`}
                     </div>
                   ) : (
                     <div className="overflow-x-auto border border-slate-100 rounded-2xl shadow-sm bg-white">
@@ -1660,7 +1746,7 @@ const TeacherDashboard = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                          {enrollments.filter(e => e.status === 'active').map((record) => {
+                          {enrollments.filter(e => e.status === 'active' && e.class === selectedClass).map((record) => {
                             const isPresent = attendanceStatuses[record._id] === 'present';
                             return (
                               <tr key={record._id} className="hover:bg-slate-50/50">
@@ -1709,7 +1795,7 @@ const TeacherDashboard = () => {
                   )}
                 </div>
 
-                {enrollments.filter(e => e.status === 'active').length > 0 && (
+                {enrollments.filter(e => e.status === 'active' && e.class === selectedClass).length > 0 && (
                   <button
                     type="submit"
                     className="w-full py-4 bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-outfit font-extrabold text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
@@ -1719,6 +1805,57 @@ const TeacherDashboard = () => {
                   </button>
                 )}
               </form>
+
+              {/* Monthly Attendance Report generator */}
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4 pt-6">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+                  <h4 className="font-outfit font-extrabold text-sm text-slate-800 uppercase tracking-wider">
+                    Monthly Class Attendance Summary ({selectedClass})
+                  </h4>
+                </div>
+                {(() => {
+                  const classStudents = enrollments.filter(e => e.status === 'active' && e.class === selectedClass);
+                  if (classStudents.length === 0) {
+                    return (
+                      <p className="text-slate-400 text-xs italic">No active students in this class to generate report.</p>
+                    );
+                  }
+                  return (
+                    <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 font-bold uppercase border-b border-slate-100">
+                            <th className="p-3">Student</th>
+                            <th className="p-3 text-center">Total Sessions</th>
+                            <th className="p-3 text-center text-emerald-600">Present</th>
+                            <th className="p-3 text-center text-rose-600">Absent</th>
+                            <th className="p-3 text-right">Percentage</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                          {classStudents.map(student => {
+                            const studentAtts = attendanceRecords.filter(r => r.studentEnrollment === student._id);
+                            const total = studentAtts.length;
+                            const present = studentAtts.filter(r => r.status === 'present').length;
+                            const absent = total - present;
+                            const percent = total > 0 ? Math.round((present / total) * 100) : 100;
+                            
+                            return (
+                              <tr key={student._id} className="hover:bg-slate-50/50">
+                                <td className="p-3 font-bold text-slate-900">{student.name}</td>
+                                <td className="p-3 text-center text-slate-500">{total}</td>
+                                <td className="p-3 text-center text-emerald-600">{present}</td>
+                                <td className="p-3 text-center text-rose-600">{absent}</td>
+                                <td className="p-3 text-right font-black text-slate-900">{percent}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </div>
 
               {/* Attendance Log History */}
               <div className="space-y-4 pt-6 border-t border-slate-100">
@@ -1773,7 +1910,7 @@ const TeacherDashboard = () => {
           {activeTab === 'fees' && (
             <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
               <div>
-                <h3 className="font-outfit font-extrabold text-xl text-slate-900">
+                <h3 className="font-outfit font-extrabold text-xl text-slate-950">
                   {i18n.language === 'hi' ? 'मासिक ट्यूशन फीस खाता बही' : 'Monthly Tuition Invoices Ledger'}
                 </h3>
                 <p className="text-xs text-slate-400 font-semibold mt-1">
@@ -1782,6 +1919,48 @@ const TeacherDashboard = () => {
                     : 'Manage monthly billing, payment clearances, due dates, and outstanding invoices for all active student accounts.'}
                 </p>
               </div>
+
+              {/* Class Selector Dropdown */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Classroom Class Filter</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                  >
+                    {getTeacherClassesList().map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Collection Summary Cards */}
+              {(() => {
+                const classFees = feeRecords.filter(f => f.class === selectedClass);
+                const totalCollected = classFees.filter(f => f.status === 'paid').reduce((sum, f) => sum + (f.amount || 0), 0);
+                const totalPending = classFees.filter(f => f.status === 'unpaid').reduce((sum, f) => sum + (f.amount || 0), 0);
+                const totalBilled = totalCollected + totalPending;
+                const collectionPercent = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 100;
+                
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-emerald-600">Total Collected</span>
+                      <p className="font-outfit font-black text-2xl text-emerald-700 mt-1">₹{totalCollected}</p>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-amber-600">Total Pending</span>
+                      <p className="font-outfit font-black text-2xl text-amber-700 mt-1">₹{totalPending}</p>
+                    </div>
+                    <div className="bg-brand-50 border border-brand-100 p-5 rounded-2xl text-left">
+                      <span className="text-[10px] font-black uppercase text-brand-600">Clearance Rate</span>
+                      <p className="font-outfit font-black text-2xl text-brand-700 mt-1">{collectionPercent}%</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Form to bill students */}
               <form onSubmit={handleFeeSubmit} className="space-y-4 bg-slate-50 p-5 rounded-3xl border border-slate-100">
@@ -1807,7 +1986,7 @@ const TeacherDashboard = () => {
                       className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none"
                     >
                       <option value="">-- Choose Student --</option>
-                      {enrollments.filter(e => e.status === 'active').map(e => (
+                      {enrollments.filter(e => e.status === 'active' && e.class === selectedClass).map(e => (
                         <option key={e._id} value={e._id}>{e.name} ({e.class})</option>
                       ))}
                     </select>
@@ -1947,6 +2126,7 @@ const TeacherDashboard = () => {
                 
                 {(() => {
                   const filteredFeeRecords = feeRecords.filter(f => {
+                    if (f.class !== selectedClass) return false;
                     if (feeFilter === 'all') return true;
                     return f.status === feeFilter;
                   });
@@ -1955,10 +2135,10 @@ const TeacherDashboard = () => {
                     return (
                       <div className="p-6 text-center text-slate-400 font-medium bg-slate-50 rounded-3xl text-xs">
                         {feeFilter === 'unpaid' 
-                          ? 'No unpaid invoices found. All clear!' 
+                          ? 'No unpaid invoices found for this class. All clear!' 
                           : feeFilter === 'paid' 
-                            ? 'No paid invoices found.' 
-                            : 'No monthly student tuition fees logged yet.'}
+                            ? 'No paid invoices found for this class.' 
+                            : 'No monthly student tuition fees logged for this class yet.'}
                       </div>
                     );
                   }
@@ -2017,6 +2197,27 @@ const TeacherDashboard = () => {
                                   </span>
                                 </td>
                                 <td className="p-4 text-right inline-flex items-center space-x-2">
+                                  {record.status === 'unpaid' && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          await axios.post('/api/enrollments/fees', {
+                                            enrollmentId: record.studentEnrollment,
+                                            amount: record.amount,
+                                            month: record.month,
+                                            status: 'paid'
+                                          });
+                                          triggerAlert('Tuition payment marked as paid!', 'success');
+                                          fetchFeeRecords();
+                                        } catch (err) {
+                                          triggerAlert('Failed to update ledger payment.', 'error');
+                                        }
+                                      }}
+                                      className="px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all active:scale-95 shadow-sm"
+                                    >
+                                      Mark Paid
+                                    </button>
+                                  )}
                                   {record.status === 'paid' && (
                                     <button
                                       onClick={() => {
@@ -2297,6 +2498,22 @@ const TeacherDashboard = () => {
                     ? 'अध्ययन नोट्स साझा करें, शंकाओं का समाधान करें, गृहकार्य दें और घोषणाएं प्रकाशित करें।'
                     : 'Share study notes, resolve student doubts, post homework tasks, and publish announcements.'}
                 </p>
+              </div>
+
+              {/* Classroom Class Filter Dropdown */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Classroom Class Filter</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                  >
+                    {getTeacherClassesList().map(cls => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Classroom Hub Sub-Tabs Selectors */}
@@ -2595,16 +2812,29 @@ const TeacherDashboard = () => {
                     <h4 className="font-outfit font-extrabold text-xs text-slate-700 uppercase tracking-wider">
                       Post New Classroom Notice
                     </h4>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Notice Heading *</label>
-                      <input
-                        type="text"
-                        value={annTitle}
-                        onChange={(e) => setAnnTitle(e.target.value)}
-                        placeholder="e.g. Holiday Notice - Eid Al-Adha"
-                        required
-                        className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Notice Heading *</label>
+                        <input
+                          type="text"
+                          value={annTitle}
+                          onChange={(e) => setAnnTitle(e.target.value)}
+                          placeholder="e.g. Holiday Notice - Eid Al-Adha"
+                          required
+                          className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Students</label>
+                        <select
+                          value={annTarget}
+                          onChange={(e) => setAnnTarget(e.target.value)}
+                          className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                        >
+                          <option value="All">All Classes (General Announcement)</option>
+                          <option value={selectedClass}>Only {selectedClass}</option>
+                        </select>
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Announcement Details *</label>

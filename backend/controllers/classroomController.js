@@ -23,10 +23,10 @@ const getConnectedTeacherIds = async (studentId) => {
 
 export const uploadNote = async (req, res) => {
   try {
-    const { title, fileUrl, fileType } = req.body;
+    const { title, fileUrl, fileType, class: className } = req.body;
     
-    if (!title || !fileUrl) {
-      return res.status(400).json({ message: { en: 'Title and File URL are required', hi: 'शीर्षक और फ़ाइल URL आवश्यक हैं' } });
+    if (!title || !fileUrl || !className) {
+      return res.status(400).json({ message: { en: 'Title, File URL, and Class are required', hi: 'शीर्षक, फ़ाइल URL और कक्षा आवश्यक हैं' } });
     }
 
     const teacher = await Teacher.findOne({ user: req.user._id });
@@ -38,7 +38,8 @@ export const uploadNote = async (req, res) => {
       teacher: teacher._id,
       title,
       fileUrl,
-      fileType: fileType || 'pdf'
+      fileType: fileType || 'pdf',
+      class: className
     });
 
     res.status(201).json({ success: true, note });
@@ -55,7 +56,11 @@ export const getTeacherNotes = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const notes = await Note.find({ teacher: teacher._id }).sort({ createdAt: -1 });
+    const { class: className } = req.query;
+    const filter = { teacher: teacher._id };
+    if (className) filter.class = className;
+
+    const notes = await Note.find(filter).sort({ createdAt: -1 });
     res.json(notes);
   } catch (error) {
     console.error('[GET TEACHER NOTES ERROR]', error);
@@ -70,9 +75,19 @@ export const getStudentNotes = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const connectedTeachers = await getConnectedTeacherIds(student._id);
+    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    if (studentEnrollments.length === 0) {
+      return res.json([]);
+    }
 
-    const notes = await Note.find({ teacher: { $in: connectedTeachers } })
+    const query = {
+      $or: studentEnrollments.map(se => ({
+        teacher: se.teacher,
+        class: se.class
+      }))
+    };
+
+    const notes = await Note.find(query)
       .populate({
         path: 'teacher',
         populate: { path: 'user', select: 'name' }
@@ -122,21 +137,22 @@ export const askDoubt = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    // Verify student is connected to teacher
-    const isConnected = await TeacherStudentConnection.findOne({
+    // Verify student is connected to teacher and retrieve the class
+    const enrollment = await StudentEnrollment.findOne({
       student: student._id,
       teacher: teacherId,
-      status: 'accepted'
+      status: 'active'
     });
 
-    if (!isConnected) {
-      return res.status(403).json({ message: { en: 'Not connected to this teacher.', hi: 'इस शिक्षक से जुड़े नहीं हैं।' } });
+    if (!enrollment) {
+      return res.status(403).json({ message: { en: 'Not active or enrolled with this teacher.', hi: 'इस शिक्षक के साथ नामांकित या सक्रिय नहीं हैं।' } });
     }
 
     const doubt = await Doubt.create({
       student: student._id,
       teacher: teacherId,
-      question
+      question,
+      class: enrollment.class
     });
 
     res.status(201).json({ success: true, doubt });
@@ -182,7 +198,11 @@ export const getTeacherDoubts = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const doubts = await Doubt.find({ teacher: teacher._id })
+    const { class: className } = req.query;
+    const filter = { teacher: teacher._id };
+    if (className) filter.class = className;
+
+    const doubts = await Doubt.find(filter)
       .populate({
         path: 'student',
         populate: { path: 'user', select: 'name' }
@@ -203,7 +223,23 @@ export const getStudentDoubts = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const doubts = await Doubt.find({ student: student._id })
+    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    if (studentEnrollments.length === 0) {
+      return res.json([]);
+    }
+
+    const query = {
+      $or: studentEnrollments.map(se => ({
+        teacher: se.teacher,
+        class: se.class
+      }))
+    };
+
+    const doubts = await Doubt.find(query)
+      .populate({
+        path: 'student',
+        populate: { path: 'user', select: 'name' }
+      })
       .populate({
         path: 'teacher',
         populate: { path: 'user', select: 'name' }
@@ -223,10 +259,10 @@ export const getStudentDoubts = async (req, res) => {
 
 export const createHomework = async (req, res) => {
   try {
-    const { title, description, deadline } = req.body;
+    const { title, description, deadline, class: className } = req.body;
 
-    if (!title || !description || !deadline) {
-      return res.status(400).json({ message: { en: 'Title, description and deadline are required', hi: 'शीर्षक, विवरण और समय सीमा आवश्यक हैं' } });
+    if (!title || !description || !deadline || !className) {
+      return res.status(400).json({ message: { en: 'Title, description, deadline and Class are required', hi: 'शीर्षक, विवरण, समय सीमा और कक्षा आवश्यक हैं' } });
     }
 
     const teacher = await Teacher.findOne({ user: req.user._id });
@@ -238,7 +274,8 @@ export const createHomework = async (req, res) => {
       teacher: teacher._id,
       title,
       description,
-      deadline: new Date(deadline)
+      deadline: new Date(deadline),
+      class: className
     });
 
     res.status(201).json({ success: true, homework });
@@ -255,7 +292,11 @@ export const getTeacherHomework = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const homework = await Homework.find({ teacher: teacher._id }).sort({ createdAt: -1 });
+    const { class: className } = req.query;
+    const filter = { teacher: teacher._id };
+    if (className) filter.class = className;
+
+    const homework = await Homework.find(filter).sort({ createdAt: -1 });
     res.json(homework);
   } catch (error) {
     console.error('[GET TEACHER HOMEWORK ERROR]', error);
@@ -270,9 +311,19 @@ export const getStudentHomework = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const connectedTeachers = await getConnectedTeacherIds(student._id);
+    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    if (studentEnrollments.length === 0) {
+      return res.json([]);
+    }
 
-    const homework = await Homework.find({ teacher: { $in: connectedTeachers } })
+    const query = {
+      $or: studentEnrollments.map(se => ({
+        teacher: se.teacher,
+        class: se.class
+      }))
+    };
+
+    const homework = await Homework.find(query)
       .populate({
         path: 'teacher',
         populate: { path: 'user', select: 'name' }
@@ -311,7 +362,7 @@ export const deleteHomework = async (req, res) => {
 
 export const createAnnouncement = async (req, res) => {
   try {
-    const { title, content } = req.body;
+    const { title, content, class: className } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ message: { en: 'Title and content are required', hi: 'शीर्षक और सामग्री आवश्यक हैं' } });
@@ -325,7 +376,8 @@ export const createAnnouncement = async (req, res) => {
     const announcement = await Announcement.create({
       teacher: teacher._id,
       title,
-      content
+      content,
+      class: className || 'All'
     });
 
     res.status(201).json({ success: true, announcement });
@@ -342,7 +394,11 @@ export const getTeacherAnnouncements = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const announcements = await Announcement.find({ teacher: teacher._id }).sort({ createdAt: -1 });
+    const { class: className } = req.query;
+    const filter = { teacher: teacher._id };
+    if (className) filter.class = className;
+
+    const announcements = await Announcement.find(filter).sort({ createdAt: -1 });
     res.json(announcements);
   } catch (error) {
     console.error('[GET TEACHER ANNOUNCEMENTS ERROR]', error);
@@ -357,9 +413,23 @@ export const getStudentAnnouncements = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const connectedTeachers = await getConnectedTeacherIds(student._id);
+    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    if (studentEnrollments.length === 0) {
+      return res.json([]);
+    }
 
-    const announcements = await Announcement.find({ teacher: { $in: connectedTeachers } })
+    // A student can see announcements if:
+    // (1) teacher is se.teacher AND class is se.class
+    // OR
+    // (2) teacher is se.teacher AND class is 'All'
+    const query = {
+      $or: studentEnrollments.flatMap(se => [
+        { teacher: se.teacher, class: se.class },
+        { teacher: se.teacher, class: 'All' }
+      ])
+    };
+
+    const announcements = await Announcement.find(query)
       .populate({
         path: 'teacher',
         populate: { path: 'user', select: 'name' }

@@ -74,6 +74,7 @@ export const manuallyAddStudent = async (req, res) => {
         studentEnrollment: enrollment._id,
         student: null,
         studentName: name,
+        class: enrollment.class,
         amount: Number(fees),
         month: currentMonth,
         status: 'paid',
@@ -123,6 +124,7 @@ export const markRequestPaid = async (req, res) => {
       studentEnrollment: enrollment._id,
       student: enrollment.student || null,
       studentName: enrollment.name,
+      class: enrollment.class,
       amount: enrollment.fees,
       month: currentMonth,
       status: 'paid',
@@ -223,6 +225,7 @@ export const saveDailyAttendance = async (req, res) => {
         teacher: teacher._id,
         studentEnrollment: enrollment._id,
         studentName: enrollment.name,
+        class: enrollment.class,
         date: attendanceDate,
         status: record.status,
         notes: record.notes || ''
@@ -266,18 +269,27 @@ export const logMonthlyFee = async (req, res) => {
       return res.status(401).json({ message: { en: 'Not authorized to manage this student', hi: 'इस छात्र को प्रबंधित करने के लिए अधिकृत नहीं हैं' } });
     }
 
-    const entry = await Fee.create({
-      teacher: teacher._id,
-      studentEnrollment: enrollment._id,
-      student: enrollment.student || null,
-      studentName: enrollment.name,
-      amount: Number(amount),
-      month,
-      status: status || 'unpaid',
-      paidDate: status === 'paid' ? new Date() : null,
-      dueDate: dueDate ? new Date(dueDate) : null,
-      dueAmount: dueAmount ? Number(dueAmount) : 0
-    });
+    const entry = await Fee.findOneAndUpdate(
+      {
+        teacher: teacher._id,
+        studentEnrollment: enrollment._id,
+        month
+      },
+      {
+        teacher: teacher._id,
+        studentEnrollment: enrollment._id,
+        student: enrollment.student || null,
+        studentName: enrollment.name,
+        class: enrollment.class,
+        amount: Number(amount),
+        month,
+        status: status || 'unpaid',
+        paidDate: status === 'paid' ? new Date() : null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        dueAmount: dueAmount ? Number(dueAmount) : 0
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     res.status(201).json({
       success: true,

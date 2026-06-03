@@ -14,6 +14,14 @@ const teacherSchema = new mongoose.Schema({
     type: [String],
     required: true
   },
+  teachesFrom: {
+    type: Number,
+    default: 1
+  },
+  teachesTo: {
+    type: Number,
+    default: 12
+  },
   fees: {
     type: Number,
     required: true

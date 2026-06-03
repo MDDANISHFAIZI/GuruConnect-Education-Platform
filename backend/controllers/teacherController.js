@@ -101,6 +101,8 @@ export const updateTeacherProfile = async (req, res) => {
     const {
       subjects,
       classes,
+      teachesFrom,
+      teachesTo,
       fees,
       timings,
       qualification,
@@ -131,7 +133,20 @@ export const updateTeacherProfile = async (req, res) => {
 
     // Update fields
     if (subjects) teacher.subjects = Array.isArray(subjects) ? subjects : subjects.split(',').map(s => s.trim());
-    if (classes) teacher.classes = Array.isArray(classes) ? classes : classes.split(',').map(c => c.trim());
+    if (teachesFrom !== undefined) teacher.teachesFrom = Number(teachesFrom);
+    if (teachesTo !== undefined) teacher.teachesTo = Number(teachesTo);
+    
+    // Sync classes array for backward compatibility
+    if (teacher.teachesFrom !== undefined && teacher.teachesTo !== undefined) {
+      const classArray = [];
+      for (let c = teacher.teachesFrom; c <= teacher.teachesTo; c++) {
+        classArray.push(`Class ${c}`);
+      }
+      teacher.classes = classArray;
+    } else if (classes) {
+      teacher.classes = Array.isArray(classes) ? classes : classes.split(',').map(c => c.trim());
+    }
+
     if (fees !== undefined) teacher.fees = Number(fees);
     if (timings) teacher.timings = timings;
     if (qualification) teacher.qualification = qualification;
@@ -283,7 +298,14 @@ export const getNearbyTeachers = async (req, res) => {
       query.subjects = { $regex: subject, $options: 'i' };
     }
     if (classQuery) {
-      query.classes = { $regex: classQuery, $options: 'i' };
+      const numMatch = classQuery.match(/\d+/);
+      if (numMatch) {
+        const classNum = parseInt(numMatch[0], 10);
+        query.teachesFrom = { $lte: classNum };
+        query.teachesTo = { $gte: classNum };
+      } else {
+        query.classes = { $regex: classQuery, $options: 'i' };
+      }
     }
     if (mode) {
       query.mode = mode;

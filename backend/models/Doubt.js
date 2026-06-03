@@ -16,6 +16,10 @@ const doubtSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  class: {
+    type: String,
+    required: true
+  },
   answer: {
     type: String,
     default: ''

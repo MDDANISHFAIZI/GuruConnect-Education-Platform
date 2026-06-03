@@ -21,6 +21,10 @@ const feeSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  class: {
+    type: String,
+    required: true
+  },
   amount: {
     type: Number,
     required: true

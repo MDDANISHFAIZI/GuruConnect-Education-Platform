@@ -15,6 +15,10 @@ const announcementSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  class: {
+    type: String,
+    default: 'All'
   }
 }, { timestamps: true });
 

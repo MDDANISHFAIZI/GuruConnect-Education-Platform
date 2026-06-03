@@ -11,6 +11,10 @@ const noteSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  class: {
+    type: String,
+    required: true
+  },
   fileUrl: {
     type: String,
     required: true

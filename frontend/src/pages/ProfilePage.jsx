@@ -48,6 +48,8 @@ const ProfilePage = () => {
   // Edit Form Fields (Teacher only)
   const [subjects, setSubjects] = useState('');
   const [classes, setClasses] = useState('');
+  const [teachesFrom, setTeachesFrom] = useState(1);
+  const [teachesTo, setTeachesTo] = useState(12);
   const [fees, setFees] = useState(500);
   const [timings, setTimings] = useState('');
   const [qualification, setQualification] = useState('');
@@ -90,6 +92,8 @@ const ProfilePage = () => {
         setProfilePhoto(data.profilePhoto || data.profileImage || user.profilePhoto || user.profileImage || '');
         setSubjects(data.subjects?.join(', ') || '');
         setClasses(data.classes?.join(', ') || '');
+        setTeachesFrom(data.teachesFrom !== undefined ? data.teachesFrom : 1);
+        setTeachesTo(data.teachesTo !== undefined ? data.teachesTo : 12);
         setFees(data.fees || 500);
         setTimings(data.timings || '');
         setQualification(data.qualification || '');
@@ -227,7 +231,8 @@ const ProfilePage = () => {
           phone,
           profilePhoto,
           subjects,
-          classes,
+          teachesFrom: Number(teachesFrom),
+          teachesTo: Number(teachesTo),
           fees: Number(fees),
           timings,
           qualification,
@@ -547,7 +552,11 @@ const ProfilePage = () => {
                         <Users className="text-brand-500 mt-0.5 shrink-0" size={22} />
                         <div>
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Classes Taught</p>
-                          <p className="text-sm font-bold text-slate-800 mt-1">{profileData?.classes?.join(', ') || 'N/A'}</p>
+                          <p className="text-sm font-bold text-slate-800 mt-1">
+                            {profileData?.teachesFrom !== undefined 
+                              ? `Class ${profileData.teachesFrom} to Class ${profileData.teachesTo}` 
+                              : (profileData?.classes?.join(', ') || 'N/A')}
+                          </p>
                         </div>
                       </div>
 
@@ -888,15 +897,31 @@ const ProfilePage = () => {
                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Classes Taught (comma separated)</label>
-                      <input
-                        type="text"
-                        value={classes}
-                        onChange={(e) => setClasses(e.target.value)}
-                        placeholder="Class 9, Class 10"
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none"
-                      />
+                    <div className="space-y-1.5 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">From Class</label>
+                        <select
+                          value={teachesFrom}
+                          onChange={(e) => setTeachesFrom(Number(e.target.value))}
+                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
+                        >
+                          {[...Array(12)].map((_, i) => (
+                            <option key={i + 1} value={i + 1}>Class {i + 1}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">To Class</label>
+                        <select
+                          value={teachesTo}
+                          onChange={(e) => setTeachesTo(Number(e.target.value))}
+                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
+                        >
+                          {[...Array(12)].map((_, i) => (
+                            <option key={i + 1} value={i + 1}>Class {i + 1}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Qualification</label>

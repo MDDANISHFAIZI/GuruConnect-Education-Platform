@@ -76,6 +76,8 @@ export const registerUser = async (req, res) => {
           user: user._id,
           profilePhoto: processedPhoto,
           profileImage: processedPhoto,
+          teachesFrom: 1,
+          teachesTo: 12,
           subjects: ['Pending General Subjects'],
           classes: ['All'],
           fees: 500,

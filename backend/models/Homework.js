@@ -11,6 +11,10 @@ const homeworkSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  class: {
+    type: String,
+    required: true
+  },
   description: {
     type: String,
     required: true,

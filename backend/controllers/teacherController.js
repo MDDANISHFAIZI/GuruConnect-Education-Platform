@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import Review from '../models/Review.js';
 import AreaRequest from '../models/AreaRequest.js';
 import TeacherConnectionCode from '../models/TeacherConnectionCode.js';
-import { saveBase64Image } from '../utils/imageUpload.js';
+import { uploadProfileImage } from '../utils/imageUpload.js';
 
 // @desc    Get teacher profile
 // @route   GET /api/teachers/profile/:id
@@ -155,11 +155,15 @@ export const updateTeacherProfile = async (req, res) => {
     
     const photoToProcess = profilePhoto !== undefined ? profilePhoto : profileImage;
     let processedPhoto = teacher.profilePhoto || '';
+    let processedPublicId = teacher.profileImagePublicId || '';
     
     if (photoToProcess !== undefined) {
-      processedPhoto = photoToProcess ? saveBase64Image(photoToProcess) : '';
+      const uploadResult = await uploadProfileImage(photoToProcess, teacher.profileImage, teacher.profileImagePublicId);
+      processedPhoto = uploadResult.url;
+      processedPublicId = uploadResult.publicId;
       teacher.profilePhoto = processedPhoto;
       teacher.profileImage = processedPhoto;
+      teacher.profileImagePublicId = processedPublicId;
     }
     
     if (address) teacher.address = address;
@@ -191,19 +195,19 @@ export const updateTeacherProfile = async (req, res) => {
     if (req.body.name || req.body.phone || photoToProcess !== undefined) {
       const user = await User.findById(req.user._id);
       if (user) {
-        if (req.body.name) user.name = user.name; // Keep or update name
         if (req.body.name) user.name = req.body.name;
         if (req.body.phone) user.phone = req.body.phone;
         if (photoToProcess !== undefined) {
           user.profilePhoto = processedPhoto;
           user.profileImage = processedPhoto;
+          user.profileImagePublicId = processedPublicId;
         }
         await user.save();
         console.log(`[DEBUG LOG] [TEACHER USER UPDATE] User ID: ${user._id} | Photo successfully saved: "${processedPhoto}"`);
       }
     }
 
-    const updatedProfile = await Teacher.findOne({ user: req.user._id }).populate('user', 'name email phone profilePhoto profileImage');
+    const updatedProfile = await Teacher.findOne({ user: req.user._id }).populate('user', 'name email phone profilePhoto profileImage profileImagePublicId');
     res.json(updatedProfile);
   } catch (error) {
     console.error(error);

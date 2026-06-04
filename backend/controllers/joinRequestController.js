@@ -42,6 +42,27 @@ export const sendJoinRequest = async (req, res) => {
       });
     }
 
+    // Verify student's class is within the teacher's teachesFrom and teachesTo range
+    const studentClassClean = student.class || '';
+    const classNumMatch = studentClassClean.match(/\d+/);
+    if (!classNumMatch) {
+      return res.status(400).json({
+        message: {
+          en: 'Please select a valid class in your profile before requesting to join.',
+          hi: 'शामिल होने का अनुरोध करने से पहले कृपया अपनी प्रोफ़ाइल में एक वैध कक्षा चुनें।'
+        }
+      });
+    }
+    const studentClassNum = parseInt(classNumMatch[0], 10);
+    if (studentClassNum < teacher.teachesFrom || studentClassNum > teacher.teachesTo) {
+      return res.status(400).json({
+        message: {
+          en: `This teacher does not tutor for your class (${studentClassClean}). They only teach Class ${teacher.teachesFrom} to Class ${teacher.teachesTo}.`,
+          hi: `यह शिक्षक आपकी कक्षा (${studentClassClean}) के लिए ट्यूशन नहीं देते हैं। वे केवल कक्षा ${teacher.teachesFrom} से कक्षा ${teacher.teachesTo} तक पढ़ाते हैं।`
+        }
+      });
+    }
+
     // Check if duplicate pending or accepted request already exists
     const existingRequest = await JoinRequest.findOne({
       student: student._id,

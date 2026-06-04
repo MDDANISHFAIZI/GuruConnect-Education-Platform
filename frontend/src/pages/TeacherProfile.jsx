@@ -32,6 +32,7 @@ const TeacherProfile = () => {
   const [joinErrorMsg, setJoinErrorMsg] = useState('');
   const [sendingRequest, setSendingRequest] = useState(false);
   const [requestStatus, setRequestStatus] = useState(null); // null, 'pending', 'accepted', 'rejected'
+  const [studentClass, setStudentClass] = useState('');
 
   useEffect(() => {
     fetchProfileAndReviews();
@@ -52,6 +53,14 @@ const TeacherProfile = () => {
         const req = data.find(r => (r.teacher?._id || r.teacher) === id);
         if (req) {
           setRequestStatus(req.status);
+        }
+        try {
+          const { data: studentProfile } = await axios.get('/api/students/profile');
+          if (studentProfile) {
+            setStudentClass(studentProfile.class || '');
+          }
+        } catch (profileErr) {
+          console.error('Error fetching student profile details in TeacherProfile:', profileErr);
         }
       }
     } catch (err) {
@@ -162,7 +171,31 @@ const TeacherProfile = () => {
     );
   }
 
+  const getStudentClassValidation = () => {
+    if (!studentClass) {
+      return { isValid: false, reason: i18n.language === 'hi' ? 'कृपया अपनी प्रोफ़ाइल में अपनी कक्षा अपडेट करें।' : 'Please set your class in your profile first.' };
+    }
+    const classNumMatch = studentClass.match(/\d+/);
+    if (!classNumMatch) {
+      return { isValid: false, reason: i18n.language === 'hi' ? 'अमान्य कक्षा प्रारूप।' : 'Invalid class format in profile.' };
+    }
+    const studentClassNum = parseInt(classNumMatch[0], 10);
+    const teachesFrom = teacher.teachesFrom || 1;
+    const teachesTo = teacher.teachesTo || 12;
+
+    if (studentClassNum < teachesFrom || studentClassNum > teachesTo) {
+      return {
+        isValid: false,
+        reason: i18n.language === 'hi' 
+          ? `यह शिक्षक केवल कक्षा ${teachesFrom} से कक्षा ${teachesTo} तक पढ़ाते हैं। आपकी कक्षा ${studentClass} है।`
+          : `This teacher only teaches Class ${teachesFrom} to Class ${teachesTo}. Your class is ${studentClass}.`
+      };
+    }
+    return { isValid: true };
+  };
+
   const badge = getActiveBadgeDetails(teacher.lastActive);
+  const classValidation = user && user.role === 'student' ? getStudentClassValidation() : { isValid: true };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 font-sans">
@@ -235,7 +268,7 @@ const TeacherProfile = () => {
               <p className="text-[10px] text-slate-500 font-semibold mt-1">({teacher.mode} classes)</p>
             </div>
             {user && user.role === 'student' && (
-              <div className="w-full mt-1">
+              <div className="w-full mt-1 space-y-2">
                 {requestStatus === 'pending' && (
                   <button
                     disabled
@@ -257,23 +290,55 @@ const TeacherProfile = () => {
                 )}
 
                 {requestStatus === 'rejected' && (
-                  <button
-                    onClick={() => setShowJoinModal(true)}
-                    className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <span>🔄</span>
-                    <span>{i18n.language === 'hi' ? 'अनुरोध पुनः भेजें' : 'Send Request Again'}</span>
-                  </button>
+                  !classValidation.isValid ? (
+                    <div className="space-y-2 text-left">
+                      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-2.5 rounded-2xl flex items-start space-x-1.5 text-[10px] font-bold leading-tight">
+                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                        <span>{classValidation.reason}</span>
+                      </div>
+                      <button
+                        disabled
+                        className="w-full bg-slate-200 text-slate-400 font-extrabold text-[11px] px-3 py-2 rounded-xl flex items-center justify-center gap-1 opacity-60 cursor-not-allowed"
+                      >
+                        <span>🔄</span>
+                        <span>{i18n.language === 'hi' ? 'अयोग्य' : 'Ineligible'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowJoinModal(true)}
+                      className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <span>🔄</span>
+                      <span>{i18n.language === 'hi' ? 'अनुरोध पुनः भेजें' : 'Send Request Again'}</span>
+                    </button>
+                  )
                 )}
 
                 {!requestStatus && (
-                  <button
-                    onClick={() => setShowJoinModal(true)}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-1 mt-1"
-                  >
-                    <span>➕</span>
-                    <span>{i18n.language === 'hi' ? 'ट्यूशन में शामिल हों' : 'Request to Join'}</span>
-                  </button>
+                  !classValidation.isValid ? (
+                    <div className="space-y-2 text-left">
+                      <div className="bg-rose-50 border border-rose-100 text-rose-600 p-2.5 rounded-2xl flex items-start space-x-1.5 text-[10px] font-bold leading-tight">
+                        <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                        <span>{classValidation.reason}</span>
+                      </div>
+                      <button
+                        disabled
+                        className="w-full bg-slate-200 text-slate-400 font-extrabold text-[11px] px-3 py-2 rounded-xl flex items-center justify-center gap-1 opacity-60 cursor-not-allowed"
+                      >
+                        <span>➕</span>
+                        <span>{i18n.language === 'hi' ? 'अयोग्य' : 'Ineligible'}</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowJoinModal(true)}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[11px] px-3 py-2 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-1 mt-1"
+                    >
+                      <span>➕</span>
+                      <span>{i18n.language === 'hi' ? 'ट्यूशन में शामिल हों' : 'Request to Join'}</span>
+                    </button>
+                  )
                 )}
               </div>
             )}

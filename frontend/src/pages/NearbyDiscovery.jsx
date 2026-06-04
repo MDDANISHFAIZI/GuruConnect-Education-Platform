@@ -73,7 +73,7 @@ const NearbyDiscovery = () => {
   // Search and Filter states
   const [subject, setSubject] = useState('');
   const [locationQuery, setLocationQuery] = useState(''); // Text search for village/area name
-  const [classQuery, setClassQuery] = useState('');
+  const [classQuery, setClassQuery] = useState(user?.role === 'student' ? user.class || '' : '');
   const [mode, setMode] = useState('');
   const [feeMax, setFeeMax] = useState(2000);
   const [maxDistance, setMaxDistance] = useState(2000); // meters
@@ -474,11 +474,9 @@ const NearbyDiscovery = () => {
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium outline-none"
               >
                 <option value="">All Classes</option>
-                <option value="Class 1">Class 1</option>
-                <option value="Class 5">Class 5</option>
-                <option value="Class 8">Class 8</option>
-                <option value="Class 10">Class 10</option>
-                <option value="Class 12">Class 12</option>
+                {[...Array(12)].map((_, i) => (
+                  <option key={i + 1} value={`Class ${i + 1}`}>Class {i + 1}</option>
+                ))}
               </select>
             </div>
 

@@ -860,14 +860,17 @@ const ProfilePage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Class / Standard *</label>
-                    <input
-                      type="text"
+                    <select
                       value={studentClass}
                       onChange={(e) => setStudentClass(e.target.value)}
                       required
-                      placeholder="e.g. Class 10"
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
-                    />
+                    >
+                      <option value="">Select Class</option>
+                      {[...Array(12)].map((_, i) => (
+                        <option key={i + 1} value={`Class ${i + 1}`}>Class {i + 1}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">School Name *</label>

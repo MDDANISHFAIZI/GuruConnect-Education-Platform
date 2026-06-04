@@ -377,13 +377,16 @@ const StudentDashboard = () => {
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Class / Standard:</label>
-              <input
-                type="text"
+              <select
                 value={studentClass}
                 onChange={(e) => setStudentClass(e.target.value)}
-                placeholder="Class 10"
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-              />
+              >
+                <option value="">Select Class</option>
+                {[...Array(12)].map((_, i) => (
+                  <option key={i + 1} value={`Class ${i + 1}`}>Class {i + 1}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-1.5">

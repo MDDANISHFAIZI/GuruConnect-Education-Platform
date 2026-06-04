@@ -3,7 +3,7 @@ import Favorite from '../models/Favorite.js';
 import User from '../models/User.js';
 import StudentEnrollment from '../models/StudentEnrollment.js';
 import Fee from '../models/Fee.js';
-import { saveBase64Image } from '../utils/imageUpload.js';
+import { uploadProfileImage } from '../utils/imageUpload.js';
 
 // @desc    Get student profile
 // @route   GET /api/students/profile
@@ -65,11 +65,15 @@ export const updateStudentProfile = async (req, res) => {
     // Process profile photo if uploaded
     const photoToProcess = profilePhoto !== undefined ? profilePhoto : profileImage;
     let processedPhoto = student.profilePhoto || '';
+    let processedPublicId = student.profileImagePublicId || '';
     
     if (photoToProcess !== undefined) {
-      processedPhoto = photoToProcess ? saveBase64Image(photoToProcess) : '';
+      const uploadResult = await uploadProfileImage(photoToProcess, student.profileImage, student.profileImagePublicId);
+      processedPhoto = uploadResult.url;
+      processedPublicId = uploadResult.publicId;
       student.profilePhoto = processedPhoto;
       student.profileImage = processedPhoto;
+      student.profileImagePublicId = processedPublicId;
     }
 
     await student.save();
@@ -85,6 +89,7 @@ export const updateStudentProfile = async (req, res) => {
         if (photoToProcess !== undefined) {
           user.profilePhoto = processedPhoto;
           user.profileImage = processedPhoto;
+          user.profileImagePublicId = processedPublicId;
         }
         await user.save();
         console.log(`[DEBUG LOG] [STUDENT USER UPDATE] User ID: ${user._id} | Photo successfully saved: "${processedPhoto}"`);
@@ -92,12 +97,12 @@ export const updateStudentProfile = async (req, res) => {
     }
 
     const updatedStudent = await Student.findOne({ user: req.user._id })
-      .populate('user', 'name email phone profilePhoto profileImage')
+      .populate('user', 'name email phone profilePhoto profileImage profileImagePublicId')
       .populate({
         path: 'joinedTeachers',
         populate: {
           path: 'user',
-          select: 'name email phone profilePhoto profileImage'
+          select: 'name email phone profilePhoto profileImage profileImagePublicId'
         }
       });
     res.json(updatedStudent);

@@ -39,6 +39,10 @@ const studentSchema = new mongoose.Schema({
   profileImage: {
     type: String,
     default: ''
+  },
+  profileImagePublicId: {
+    type: String,
+    default: ''
   }
 });
 

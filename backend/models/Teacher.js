@@ -51,6 +51,10 @@ const teacherSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  profileImagePublicId: {
+    type: String,
+    default: ''
+  },
   address: {
     type: String,
     required: true

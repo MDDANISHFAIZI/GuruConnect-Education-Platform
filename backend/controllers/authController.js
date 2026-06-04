@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
-import { saveBase64Image } from '../utils/imageUpload.js';
+import { uploadProfileImage } from '../utils/imageUpload.js';
 
 // Helper: Generate JWT
 const generateToken = (id, role) => {
@@ -45,7 +45,8 @@ export const registerUser = async (req, res) => {
 
     // Save profile picture if uploaded
     const photoToProcess = profilePhoto || profileImage || '';
-    const processedPhoto = photoToProcess ? saveBase64Image(photoToProcess) : '';
+    const uploadResult = photoToProcess ? await uploadProfileImage(photoToProcess) : { url: '', publicId: '' };
+    const processedPhoto = uploadResult.url;
 
     console.log(`[DEBUG LOG] [AUTH REGISTER] Received photo data length: ${photoToProcess ? photoToProcess.length : 0} | Processed URL: "${processedPhoto}"`);
 
@@ -57,7 +58,8 @@ export const registerUser = async (req, res) => {
       role,
       phone,
       profilePhoto: processedPhoto,
-      profileImage: processedPhoto
+      profileImage: processedPhoto,
+      profileImagePublicId: uploadResult.publicId
     });
 
     if (user) {
@@ -66,7 +68,8 @@ export const registerUser = async (req, res) => {
         await Student.create({
           user: user._id,
           profilePhoto: processedPhoto,
-          profileImage: processedPhoto
+          profileImage: processedPhoto,
+          profileImagePublicId: uploadResult.publicId
         });
       }
       
@@ -76,6 +79,7 @@ export const registerUser = async (req, res) => {
           user: user._id,
           profilePhoto: processedPhoto,
           profileImage: processedPhoto,
+          profileImagePublicId: uploadResult.publicId,
           teachesFrom: 1,
           teachesTo: 12,
           subjects: ['Pending General Subjects'],
@@ -100,6 +104,7 @@ export const registerUser = async (req, res) => {
         role: user.role,
         profilePhoto: user.profilePhoto,
         profileImage: user.profileImage,
+        profileImagePublicId: user.profileImagePublicId,
         token: generateToken(user._id, user.role)
       });
     } else {
@@ -163,6 +168,7 @@ export const loginUser = async (req, res) => {
         role: user.role,
         profilePhoto: user.profilePhoto,
         profileImage: user.profileImage,
+        profileImagePublicId: user.profileImagePublicId,
         token: generateToken(user._id, user.role)
       });
     } else {

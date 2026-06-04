@@ -335,10 +335,17 @@ const TeacherDashboard = () => {
         setPhone(data.user.phone);
         setSubjects(data.subjects.join(', '));
         setClasses(data.classes.join(', '));
-        setTeachesFrom(data.teachesFrom !== undefined ? data.teachesFrom : 1);
-        setTeachesTo(data.teachesTo !== undefined ? data.teachesTo : 12);
-        if (!selectedClass) {
-          setSelectedClass(`Class ${data.teachesFrom !== undefined ? data.teachesFrom : 1}`);
+        const from = data.teachesFrom !== undefined ? data.teachesFrom : 1;
+        const to = data.teachesTo !== undefined ? data.teachesTo : 12;
+        setTeachesFrom(from);
+        setTeachesTo(to);
+        
+        const classesList = [];
+        for (let c = from; c <= to; c++) {
+          classesList.push(`Class ${c}`);
+        }
+        if (!selectedClass || !classesList.includes(selectedClass)) {
+          setSelectedClass(classesList[0] || `Class ${from}`);
         }
         setFees(data.fees);
         setTimings(data.timings);
@@ -1548,14 +1555,17 @@ const TeacherDashboard = () => {
                           <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             {i18n.language === 'hi' ? 'कक्षा *' : 'Class / Standard *'}
                           </label>
-                          <input
-                            type="text"
+                          <select
                             value={manualClass}
                             onChange={(e) => setManualClass(e.target.value)}
                             required
-                            placeholder="e.g. Class 10"
                             className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-                          />
+                          >
+                            <option value="">-- Choose Class --</option>
+                            {getTeacherClassesList().map(cls => (
+                              <option key={cls} value={cls}>{cls}</option>
+                            ))}
+                          </select>
                         </div>
 
                         <div className="space-y-1">
@@ -2832,7 +2842,9 @@ const TeacherDashboard = () => {
                           className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
                         >
                           <option value="All">All Classes (General Announcement)</option>
-                          <option value={selectedClass}>Only {selectedClass}</option>
+                          {getTeacherClassesList().map(cls => (
+                            <option key={cls} value={cls}>{cls}</option>
+                          ))}
                         </select>
                       </div>
                     </div>

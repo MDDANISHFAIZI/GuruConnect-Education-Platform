@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -30,9 +30,10 @@ const CoordinatePickerListener = ({ onLocationPick }) => {
 const TeacherDashboard = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   // Dashboard Tabs
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'attendance', 'fees'
+  const [activeTab, setActiveTab] = useState('students'); // 'students', 'attendance', 'fees'
 
   // Tab 1: Profile State
   const [name, setName] = useState('');
@@ -136,6 +137,14 @@ const TeacherDashboard = () => {
       list.push(`Class ${c}`);
     }
     return list;
+  };
+
+  const isStudentUnsupported = (studentClass) => {
+    if (!studentClass) return false;
+    const match = studentClass.match(/\d+/);
+    if (!match) return false;
+    const num = parseInt(match[0], 10);
+    return num < (teachesFrom || 1) || num > (teachesTo || 12);
   };
 
   const [teacherConnections, setTeacherConnections] = useState([]);
@@ -321,10 +330,14 @@ const TeacherDashboard = () => {
     // Support deep-linking tabs from the Profile dropdown
     const params = new URLSearchParams(window.location.search);
     const queryTab = params.get('tab');
-    if (queryTab && ['profile', 'students', 'attendance', 'fees', 'requests', 'classroom'].includes(queryTab)) {
+    if (queryTab === 'profile') {
+      navigate('/profile');
+      return;
+    }
+    if (queryTab && ['students', 'attendance', 'fees', 'requests', 'classroom'].includes(queryTab)) {
       setActiveTab(queryTab);
     }
-  }, [window.location.search]);
+  }, [window.location.search, navigate]);
 
   // Fetch Teacher details
   const fetchTeacherProfile = async () => {
@@ -761,17 +774,6 @@ const TeacherDashboard = () => {
         
         {/* Left Column Navigation (Col 3) */}
         <div className="lg:col-span-3 space-y-2">
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`w-full text-left p-4 rounded-2xl font-bold text-sm transition-all flex items-center space-x-3 cursor-pointer ${
-              activeTab === 'profile'
-                ? 'bg-brand-500 text-white shadow'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
-            }`}
-          >
-            <User size={18} />
-            <span>{t('dashboard.sidebar.profile')}</span>
-          </button>
 
           <button
             onClick={() => setActiveTab('students')}
@@ -886,263 +888,7 @@ const TeacherDashboard = () => {
 
         {/* Right Column Content Panels (Col 9) */}
         <div className="lg:col-span-9">
-          
-          {/* TAB 1: Profile Manager */}
-          {activeTab === 'profile' && (
-            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-              <div>
-                <h3 className="font-outfit font-extrabold text-xl text-slate-900">
-                  {t('dashboard.teacher.profileTabTitle')}
-                </h3>
-                <p className="text-xs text-slate-400 font-semibold mt-1">
-                  {t('dashboard.teacher.profileHelpText')}
-                </p>
-              </div>
 
-              <form onSubmit={handleProfileSubmit} className="space-y-6">
-                
-                {/* Visual grid fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('auth.nameLabel')}</label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('auth.phoneLabel')}</label>
-                    <input
-                      type="text"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.subjectsTaught')}</label>
-                    <input
-                      type="text"
-                      value={subjects}
-                      onChange={(e) => setSubjects(e.target.value)}
-                      placeholder={t('dashboard.teacher.subjectsPlaceholder')}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-400">From Class</label>
-                      <select
-                        value={teachesFrom}
-                        onChange={(e) => setTeachesFrom(Number(e.target.value))}
-                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                      >
-                        {[...Array(12)].map((_, i) => (
-                          <option key={i + 1} value={i + 1}>Class {i + 1}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-400">To Class</label>
-                      <select
-                        value={teachesTo}
-                        onChange={(e) => setTeachesTo(Number(e.target.value))}
-                        className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                      >
-                        {[...Array(12)].map((_, i) => (
-                          <option key={i + 1} value={i + 1}>Class {i + 1}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.feesLabel')}</label>
-                    <input
-                      type="number"
-                      value={fees}
-                      onChange={(e) => setFees(Number(e.target.value))}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.timingsLabel')}</label>
-                    <input
-                      type="text"
-                      value={timings}
-                      onChange={(e) => setTimings(e.target.value)}
-                      placeholder="e.g., 4:00 PM - 7:00 PM"
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">Qualifications:</label>
-                    <input
-                      type="text"
-                      value={qualification}
-                      onChange={(e) => setQualification(e.target.value)}
-                      placeholder="e.g., B.Sc. Mathematics, B.Ed."
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">Years Experience:</label>
-                    <input
-                      type="number"
-                      value={experience}
-                      onChange={(e) => setExperience(Number(e.target.value))}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">{t('dashboard.teacher.modeLabel')}</label>
-                    <select
-                      value={mode}
-                      onChange={(e) => setMode(e.target.value)}
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium outline-none"
-                    >
-                      <option value="offline">Offline Only (Home Tuition)</option>
-                      <option value="online">Online Only</option>
-                      <option value="both">Both (Online and offline)</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-1.5 flex flex-col justify-end pb-3">
-                    <label className="flex items-center space-x-2 text-sm font-bold text-slate-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={demoAvailable}
-                        onChange={(e) => setDemoAvailable(e.target.checked)}
-                        className="h-5 w-5 accent-brand-500 rounded"
-                      />
-                      <span>{t('dashboard.teacher.demoLabel')}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">
-                      {i18n.language === 'hi' ? 'गाँव / शिक्षण क्षेत्र का नाम *' : 'Village / Teaching Area *'}
-                    </label>
-                    <input
-                      type="text"
-                      value={teachingArea}
-                      onChange={(e) => setTeachingArea(e.target.value)}
-                      required
-                      placeholder="e.g. Kamardih, Topchanchi"
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">
-                      {i18n.language === 'hi' ? 'इलाका / ब्लॉक' : 'Locality / Sub-area'}
-                    </label>
-                    <input
-                      type="text"
-                      value={locality}
-                      onChange={(e) => setLocality(e.target.value)}
-                      placeholder="e.g. Tundi, Maharajganj"
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">
-                      {i18n.language === 'hi' ? 'शहर / जिला *' : 'City / District *'}
-                    </label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      required
-                      placeholder="e.g. Dhanbad"
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold uppercase text-slate-400">
-                      {i18n.language === 'hi' ? 'राज्य *' : 'State *'}
-                    </label>
-                    <input
-                      type="text"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      required
-                      placeholder="e.g. Jharkhand"
-                      className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase text-slate-400">{t('discovery.addressLabel')}</label>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    rows="2"
-                    placeholder="Provide full village, post, district address details..."
-                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:bg-white outline-none focus:border-brand-500 transition-all resize-none"
-                  ></textarea>
-                </div>
-
-                {/* Map Coordinates Selector */}
-                <div className="border-t border-slate-100 pt-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <div>
-                      <h4 className="font-outfit font-extrabold text-slate-800 text-base">Academy Map Location</h4>
-                      <p className="text-[11px] text-slate-400 font-bold mt-0.5">Lng: {coordinates[0].toFixed(5)}, Lat: {coordinates[1].toFixed(5)}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleGPSDetect}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center space-x-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-                    >
-                      <Navigation size={12} className="text-[#f97316]" />
-                      <span>{t('dashboard.teacher.gpsButton')}</span>
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-400 font-medium">
-                    {t('dashboard.teacher.gpsManual')}
-                  </p>
-
-                  <div className="h-64 rounded-3xl overflow-hidden border border-slate-200 shadow-sm relative z-0">
-                    {coordinates && (
-                      <MapContainer
-                        center={[coordinates[1], coordinates[0]]}
-                        zoom={13}
-                        style={{ height: '100%', width: '100%' }}
-                      >
-                        <TileLayer
-                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        />
-                        <Marker position={[coordinates[1], coordinates[0]]} icon={teacherIcon}></Marker>
-                        <CoordinatePickerListener onLocationPick={setCoordinates} />
-                      </MapContainer>
-                    )}
-                  </div>
-                </div>
-
-                {/* Save Button */}
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-outfit font-extrabold text-base rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center space-x-2 cursor-pointer"
-                >
-                  <Save size={18} />
-                  <span>Update Profile Location & Metadata</span>
-                </button>
-
-              </form>
-            </div>
-          )}
 
           {/* TAB 1.5: Advanced Student Management Panel */}
           {activeTab === 'students' && (
@@ -1350,6 +1096,11 @@ const TeacherDashboard = () => {
                                         <p className="text-[10px] text-slate-400 font-extrabold uppercase mt-0.5 tracking-wider">
                                           {i18n.language === 'hi' ? `कक्षा: ${record.class}` : `Class: ${record.class}`}
                                         </p>
+                                        {isStudentUnsupported(record.class) && (
+                                          <span className="inline-block mt-1 bg-rose-50 border border-rose-100 text-rose-700 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-md">
+                                            ⚠️ Not Currently Supported
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                     <span className={`text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full ${
@@ -1453,6 +1204,11 @@ const TeacherDashboard = () => {
                                         <p className="text-[10px] text-slate-400 font-extrabold uppercase mt-0.5 tracking-wider">
                                           {i18n.language === 'hi' ? `कक्षा: ${record.class}` : `Class: ${record.class}`}
                                         </p>
+                                        {isStudentUnsupported(record.class) && (
+                                          <span className="inline-block mt-1 bg-rose-50 border border-rose-100 text-rose-700 font-black text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-md">
+                                            ⚠️ Not Currently Supported
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                     <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">

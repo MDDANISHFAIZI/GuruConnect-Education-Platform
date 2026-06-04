@@ -103,6 +103,21 @@ const StudentDashboard = () => {
     }
   };
 
+  const getUnsupportedTeachers = () => {
+    if (!studentClass || !joinedTeachers) return [];
+    const match = studentClass.match(/\d+/);
+    if (!match) return [];
+    const studentClassNum = parseInt(match[0], 10);
+    
+    return joinedTeachers.filter(teacher => {
+      const from = teacher.teachesFrom !== undefined ? teacher.teachesFrom : 1;
+      const to = teacher.teachesTo !== undefined ? teacher.teachesTo : 12;
+      return studentClassNum < from || studentClassNum > to;
+    });
+  };
+
+  const unsupportedTeachers = getUnsupportedTeachers();
+
   const fetchFavorites = async () => {
     setLoading(true);
     try {
@@ -329,6 +344,25 @@ const StudentDashboard = () => {
         </div>
       )}
 
+      {/* Unsupported Teachers Warning Banners */}
+      {unsupportedTeachers.map(teacher => (
+        <div key={teacher._id} className="bg-rose-50 border border-rose-200 text-rose-800 p-6 rounded-3xl mb-6 shadow-sm flex items-start space-x-4 animate-fade-in">
+          <AlertCircle className="text-rose-500 shrink-0 mt-1" size={24} />
+          <div className="space-y-1 text-left">
+            <h4 className="font-outfit font-extrabold text-sm sm:text-base text-rose-900">
+              {i18n.language === 'hi' 
+                ? `शिक्षक ${teacher.user?.name || 'Tutor'} वर्तमान में आपकी कक्षा का समर्थन नहीं करते हैं` 
+                : `Tuition Support Paused with ${teacher.user?.name || 'Teacher'}`}
+            </h4>
+            <p className="text-xs sm:text-sm text-rose-700 leading-relaxed font-semibold">
+              {i18n.language === 'hi'
+                ? `आपके शिक्षक वर्तमान में केवल कक्षा ${teacher.teachesFrom || 1}–${teacher.teachesTo || 12} को पढ़ाते हैं। आप कक्षा ${studentClass} में नामांकित हैं। यह शिक्षक अभी आपकी कक्षा को नहीं पढ़ा रहे हैं। कृपया शिक्षक से संपर्क करें या किसी अन्य उपलब्ध शिक्षक के साथ पंजीकरण करें।`
+                : `Your teacher currently teaches Class ${teacher.teachesFrom || 1}–${teacher.teachesTo || 12} only. You are enrolled in ${studentClass}. This teacher is not teaching your class at the moment. Please contact the teacher or enroll with another available teacher.`}
+            </p>
+          </div>
+        </div>
+      ))}
+
       {/* Header Banner */}
       <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden mb-8 shadow-premium">
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -347,82 +381,8 @@ const StudentDashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* Left Column: Student Profile Details Edit (Col 4) */}
-        <div className="lg:col-span-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-          <div>
-            <h3 className="font-outfit font-extrabold text-xl text-slate-900">Student & Parent Info</h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Manage details</p>
-          </div>
-
-          <form onSubmit={handleProfileSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('auth.nameLabel')}</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-              />
-            </div>
-            
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('auth.phoneLabel')}</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Class / Standard:</label>
-              <select
-                value={studentClass}
-                onChange={(e) => setStudentClass(e.target.value)}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-              >
-                <option value="">Select Class</option>
-                {[...Array(12)].map((_, i) => (
-                  <option key={i + 1} value={`Class ${i + 1}`}>Class {i + 1}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">School Name:</label>
-              <input
-                type="text"
-                value={school}
-                onChange={(e) => setSchool(e.target.value)}
-                placeholder="Govt High School"
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Village / Home Address:</label>
-              <textarea
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                rows="2"
-                placeholder="Village name, District..."
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500 transition-all resize-none"
-              ></textarea>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-2xl shadow active:scale-95 transition-all flex items-center justify-center space-x-1 cursor-pointer"
-            >
-              <Save size={12} />
-              <span>Update Profile</span>
-            </button>
-          </form>
-        </div>
-
-        {/* Right Column: Tab Switcher & Active Section */}
-        <div className="lg:col-span-8 space-y-6">
+        {/* Main Content Area: Tab Switcher & Active Section */}
+        <div className="lg:col-span-12 space-y-6">
           
           {/* Main Tab Switches */}
           <div className="flex border-b border-slate-100 space-x-6 pb-px overflow-x-auto scrollbar-none">

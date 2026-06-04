@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -15,6 +15,7 @@ import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 const StudentDashboard = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Student Profile fields
   const [studentClass, setStudentClass] = useState('');
@@ -30,6 +31,8 @@ const StudentDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [alertMsg, setAlertMsg] = useState('');
   const [billingHistory, setBillingHistory] = useState([]);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   // Main navigation tab
   const [mainTab, setMainTab] = useState('classroom'); // 'classroom', 'explore', 'billing'
@@ -318,6 +321,30 @@ const StudentDashboard = () => {
     setTimeout(() => setAlertMsg(''), 4000);
   };
 
+  const handleResendVerification = async () => {
+    if (resendLoading) return;
+    setResendLoading(true);
+    try {
+      await axios.post('/api/auth/resend-otp', {
+        email: user?.email
+      });
+      triggerAlert(
+        i18n.language === 'hi' 
+          ? 'सत्यापन कोड आपके ईमेल पर पुनः भेजा गया है।' 
+          : 'Verification code resent to your email successfully.'
+      );
+    } catch (err) {
+      console.error(err);
+      const errData = err.response?.data?.message;
+      const localizedError = typeof errData === 'object'
+        ? (i18n.language === 'hi' ? errData.hi : errData.en)
+        : (errData || 'Failed to resend code.');
+      triggerAlert(localizedError);
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const renderProfilePhoto = (photoPath, className = "w-10 h-10 rounded-full object-cover border border-slate-200") => {
     const formattedUrl = getProfilePhotoUrl(photoPath);
     if (formattedUrl) {
@@ -363,6 +390,46 @@ const StudentDashboard = () => {
         </div>
       ))}
 
+      {/* Dismissible warning banner if unverified */}
+      {!user?.emailVerified && !bannerDismissed && (
+        <div className="bg-gradient-to-r from-rose-500 to-orange-500 rounded-3xl p-5 text-white mb-6 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in text-left">
+          <div className="flex items-center space-x-3 text-center sm:text-left">
+            <AlertCircle size={24} className="shrink-0 animate-bounce hidden sm:block" />
+            <div>
+              <h3 className="font-outfit font-black text-base">
+                {i18n.language === 'hi' ? 'आपका ईमेल सत्यापित नहीं है!' : 'Verify Your Email Address'}
+              </h3>
+              <p className="text-white/80 text-xs font-semibold mt-0.5">
+                {i18n.language === 'hi'
+                  ? 'कृपया सभी सुविधाओं का उपयोग करने के लिए अपना ईमेल सत्यापित करें।'
+                  : 'Please verify your email to unlock all platform capabilities.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 shrink-0">
+            <button
+              onClick={() => navigate('/verify-email')}
+              className="bg-white hover:bg-slate-50 text-rose-600 font-black text-xs px-4 py-2.5 rounded-xl active:scale-95 transition-all shadow cursor-pointer border border-transparent"
+            >
+              {i18n.language === 'hi' ? 'अभी सत्यापित करें' : 'Verify Now'}
+            </button>
+            <button
+              onClick={handleResendVerification}
+              disabled={resendLoading}
+              className="bg-rose-600/30 hover:bg-rose-600/40 border border-white/20 text-white font-black text-xs px-4 py-2.5 rounded-xl active:scale-95 transition-all cursor-pointer border-transparent"
+            >
+              {resendLoading ? '...' : (i18n.language === 'hi' ? 'ओटीपी पुनः भेजें' : 'Resend Code')}
+            </button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="hover:bg-white/10 p-2 rounded-full transition-colors cursor-pointer border border-transparent"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden mb-8 shadow-premium">
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -370,8 +437,17 @@ const StudentDashboard = () => {
           <span className="bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-extrabold text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
             {t('dashboard.student.statsBadge')}
           </span>
-          <h1 className="font-outfit font-black text-3xl">
-            {t('dashboard.welcome', { name: name || user?.name })}
+          <h1 className="font-outfit font-black text-3xl flex flex-wrap items-center gap-2">
+            <span>{t('dashboard.welcome', { name: name || user?.name })}</span>
+            {user?.emailVerified ? (
+              <span className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                ✓ Verified
+              </span>
+            ) : (
+              <span className="bg-rose-500/20 border border-rose-500/30 text-rose-300 font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                ⚠ Unverified
+              </span>
+            )}
           </h1>
           <p className="text-slate-400 text-sm max-w-lg font-medium">
             {t('dashboard.student.title')}

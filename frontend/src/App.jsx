@@ -13,6 +13,10 @@ import StudentProfile from './pages/StudentProfile';
 import AdminDashboard from './pages/AdminDashboard';
 import ProfilePage from './pages/ProfilePage';
 import CreatorPage from './pages/CreatorPage';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import VerifyForgotOTP from './pages/VerifyForgotOTP';
+import ResetPassword from './pages/ResetPassword';
 import { useAuth } from './context/AuthContext';
 
 // Protected Route wrapper checking authentication and role limits
@@ -69,6 +73,12 @@ function App() {
             <Route path="/login" element={<Navigate to="/login/student" replace />} />
             <Route path="/register" element={<Navigate to="/register/student" replace />} />
             <Route path="/signup" element={<Navigate to="/signup/student" replace />} />
+
+            {/* Verification and Recovery */}
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-forgot-otp" element={<VerifyForgotOTP />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route path="/nearby" element={<NearbyDiscovery />} />
             <Route path="/creator" element={<CreatorPage />} />

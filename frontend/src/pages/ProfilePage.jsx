@@ -374,6 +374,20 @@ const ProfilePage = () => {
                     <span>{isTeacher ? '👨‍🏫' : '🎓'}</span>
                     <span>{roleLabel}</span>
                   </span>
+                  {user?.emailVerified ? (
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-black uppercase tracking-wider px-4 py-1.5 bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 rounded-full shadow-sm text-emerald-100">
+                      <span>✓</span>
+                      <span>Verified Email</span>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => navigate('/verify-email')}
+                      className="inline-flex items-center space-x-1 text-[10px] font-black uppercase tracking-wider px-4 py-1.5 bg-rose-500/20 backdrop-blur-md border border-rose-500/30 rounded-full shadow-sm text-rose-100 hover:bg-rose-500/30 transition-all hover:scale-105 cursor-pointer"
+                    >
+                      <span>⚠</span>
+                      <span>Verify Email</span>
+                    </button>
+                  )}
                   <span className="text-white/90 font-bold text-xs flex items-center space-x-1 drop-shadow-sm bg-black/10 px-3.5 py-1.5 rounded-full border border-white/5">
                     <Calendar size={13} className="text-white/80" />
                     <span>Member since {new Date(user?.createdAt || Date.now()).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}</span>

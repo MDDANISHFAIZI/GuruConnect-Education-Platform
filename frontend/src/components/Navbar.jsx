@@ -183,6 +183,19 @@ const Navbar = () => {
                         <span className={`inline-block text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1.5 ${roleBadgeStyle}`}>
                           {roleLabel}
                         </span>
+                        {user.emailVerified ? (
+                          <span className="inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1.5 ml-1 bg-emerald-50 border-emerald-100 text-emerald-600">
+                            ✓ Verified
+                          </span>
+                        ) : (
+                          <Link 
+                            to="/verify-email" 
+                            onClick={() => setDropdownOpen(false)}
+                            className="inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1.5 ml-1 bg-rose-50 border-rose-100 text-rose-600 hover:scale-105 transition-all"
+                          >
+                            ⚠ Verify Email
+                          </Link>
+                        )}
                       </div>
                     </div>
 
@@ -402,6 +415,19 @@ const Navbar = () => {
                     <span className={`inline-block text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1 ${roleBadgeStyle}`}>
                       {roleLabel}
                     </span>
+                    {user.emailVerified ? (
+                      <span className="inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1 ml-1 bg-emerald-50 border-emerald-100 text-emerald-600">
+                        ✓ Verified
+                      </span>
+                    ) : (
+                      <Link 
+                        to="/verify-email" 
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border mt-1 ml-1 bg-rose-50 border-rose-100 text-rose-600 hover:scale-105 transition-all"
+                      >
+                        ⚠ Verify Email
+                      </Link>
+                    )}
                   </div>
                 </div>
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Lock, Phone, AlertCircle, Sparkles } from 'lucide-react';
+import { User, Mail, Lock, Phone, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 const Register = ({ role }) => {
   const { t, i18n } = useTranslation();
@@ -16,6 +16,7 @@ const Register = ({ role }) => {
   const [profilePhoto, setProfilePhoto] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -52,11 +53,7 @@ const Register = ({ role }) => {
     setLoading(false);
 
     if (result.success) {
-      if (role === 'teacher') {
-        navigate('/teacher');
-      } else {
-        navigate('/student');
-      }
+      navigate('/verify-email', { state: { email } });
     } else {
       const localizedError = typeof result.error === 'object'
         ? (i18n.language === 'hi' ? result.error.hi : result.error.en)
@@ -222,12 +219,21 @@ const Register = ({ role }) => {
                   <Lock size={18} />
                 </span>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none transition-all text-sm font-semibold"
+                  className="w-full pl-11 pr-11 py-3.5 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-100 outline-none transition-all text-sm font-semibold"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                  aria-label={showPassword ? "Hide Password" : "Show Password"}
+                  title={showPassword ? "Hide Password" : "Show Password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 

@@ -1,11 +1,11 @@
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
 
 /**
  * Single source of truth for active student enrollment.
- * Automatically creates/updates TeacherStudentConnection and StudentEnrollment,
+ * Automatically creates/updates TeacherStudentConnection and Enrollment,
  * updates cohort arrays on both teacher and student profiles, and prints logs.
  */
 export const activateStudentEnrollment = async ({ teacherId, studentId, subject, parentPhone }) => {
@@ -19,26 +19,30 @@ export const activateStudentEnrollment = async ({ teacherId, studentId, subject,
       return null;
     }
 
-    // 2. DEDUPLICATION: Check if enrollment already exists
-    let enrollment = await StudentEnrollment.findOne({
+    const className = student.class || 'Class 10';
+    const subjectName = subject || teacher.subjects[0] || 'General Cohort';
+
+    // 2. Check if enrollment already exists for this teacher, student, class, and subject
+    let enrollment = await Enrollment.findOne({
       teacher: teacherId,
-      student: studentId
+      student: studentId,
+      class: className,
+      subject: subjectName
     });
 
     if (enrollment) {
       // If exists, mark status as active
       enrollment.status = 'active';
-      if (subject) enrollment.subject = subject;
       if (parentPhone) enrollment.parentPhone = parentPhone;
       await enrollment.save();
     } else {
       // Create new enrollment
-      enrollment = await StudentEnrollment.create({
+      enrollment = await Enrollment.create({
         teacher: teacherId,
         student: studentId,
         name: student.user?.name || 'Online Student',
-        class: student.class || 'Class 10',
-        subject: subject || teacher.subjects[0] || 'General Cohort',
+        class: className,
+        subject: subjectName,
         fees: teacher.fees || 500,
         parentPhone: parentPhone || student.user?.phone || '',
         status: 'active',

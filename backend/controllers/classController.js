@@ -1,7 +1,8 @@
 import Attendance from '../models/Attendance.js';
 import Fee from '../models/Fee.js';
 import Teacher from '../models/Teacher.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // Helper: Get requesting user's Teacher ID
 const getTeacherIdHelper = async (userId) => {
@@ -94,8 +95,13 @@ export const recordFeePayment = async (req, res) => {
 
     const teacherId = await getTeacherIdHelper(req.user._id);
 
-    // Enforce strict roster checks: find StudentEnrollment registry for this student and teacher
-    const enrollment = await StudentEnrollment.findOne({ teacher: teacherId, name: studentName });
+    // Enforce strict roster checks: find Enrollment registry for this student and teacher
+    const enrollmentQuery = { teacher: teacherId, name: studentName };
+    if (req.body.class) enrollmentQuery.class = req.body.class;
+    const enrollment = await Enrollment.findOne(enrollmentQuery).populate({
+      path: 'student',
+      populate: { path: 'user' }
+    });
     if (!enrollment) {
       return res.status(404).json({
         message: {
@@ -130,6 +136,26 @@ export const recordFeePayment = async (req, res) => {
         status,
         paidDate: status === 'paid' ? (paidDate ? new Date(paidDate) : new Date()) : undefined
       });
+    }
+
+    if (enrollment.student && enrollment.student.user) {
+      if (status === 'paid') {
+        await createNotification({
+          userId: enrollment.student.user._id.toString(),
+          title: 'Fee Payment Recorded',
+          message: `Your fee payment of ₹${amount} for ${month} has been recorded by ${req.user.name}.`,
+          type: 'MESSAGE',
+          link: '/student?tab=classroom'
+        });
+      } else {
+        await createNotification({
+          userId: enrollment.student.user._id.toString(),
+          title: 'Tuition Fees Due',
+          message: `Fees of ₹${amount} for ${month} are due. Please pay to ${req.user.name} by the due date.`,
+          type: 'FEE_DUE',
+          link: '/student?tab=classroom'
+        });
+      }
     }
 
     res.status(201).json({

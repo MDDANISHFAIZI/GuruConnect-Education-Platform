@@ -1,11 +1,12 @@
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import TeacherConnectionCode from '../models/TeacherConnectionCode.js';
 import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
 import Fee from '../models/Fee.js';
 import JoinRequest from '../models/JoinRequest.js';
 import { activateStudentEnrollment } from '../utils/enrollmentHelper.js';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Lookup teacher by connection code
 // @route   GET /api/connections/lookup/:code
@@ -138,7 +139,7 @@ export const connectWithCode = async (req, res) => {
     }
 
     // CHECK IF AN ENROLLMENT OR AN ACCEPTED JOIN REQUEST EXISTS BETWEEN THIS STUDENT AND TEACHER
-    const existingEnrollment = await StudentEnrollment.findOne({ teacher: teacherId, student: student._id });
+    const existingEnrollment = await Enrollment.findOne({ teacher: teacherId, student: student._id });
     const acceptedJoinRequest = await JoinRequest.findOne({ teacher: teacherId, student: student._id, status: 'accepted' });
 
     if (existingEnrollment || acceptedJoinRequest) {
@@ -171,7 +172,7 @@ export const connectWithCode = async (req, res) => {
     let matchedEnrollment = null;
 
     if (studentPhone) {
-      matchedEnrollment = await StudentEnrollment.findOne({
+      matchedEnrollment = await Enrollment.findOne({
         teacher: teacherId,
         type: 'manual',
         student: null, // not claimed yet
@@ -243,7 +244,7 @@ export const claimOfflineRecord = async (req, res) => {
       });
     }
 
-    const enrollment = await StudentEnrollment.findById(enrollmentId);
+    const enrollment = await Enrollment.findById(enrollmentId);
     if (!enrollment || enrollment.teacher.toString() !== teacherId) {
       return res.status(404).json({
         message: {
@@ -291,6 +292,17 @@ export const claimOfflineRecord = async (req, res) => {
     if (!student.joinedTeachers.includes(teacherId)) {
       student.joinedTeachers.push(teacherId);
       await student.save();
+    }
+
+    // Notify teacher
+    if (teacher && teacher.user) {
+      await createNotification({
+        userId: teacher.user.toString(),
+        title: 'Offline Record Claimed',
+        message: `${student.user?.name || 'A student'} has claimed their offline tuition record for ${enrollment.class} ${enrollment.subject}.`,
+        type: 'ENROLLMENT_ACCEPTED',
+        link: '/teacher?tab=students'
+      });
     }
 
     console.log("Location Request Accepted");

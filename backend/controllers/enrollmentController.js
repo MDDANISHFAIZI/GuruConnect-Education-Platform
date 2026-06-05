@@ -1,8 +1,10 @@
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
 import Attendance from '../models/Attendance.js';
 import Fee from '../models/Fee.js';
+import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Get all student enrollments (cohorts) for active teacher
 // @route   GET /api/enrollments
@@ -14,7 +16,7 @@ export const getEnrollments = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const enrollments = await StudentEnrollment.find({ teacher: teacher._id })
+    const enrollments = await Enrollment.find({ teacher: teacher._id })
       .populate({
         path: 'student',
         populate: { path: 'user', select: 'name email phone profilePhoto profileImage' }
@@ -52,7 +54,7 @@ export const manuallyAddStudent = async (req, res) => {
     const enrollmentStatus = status === 'pending' ? 'pending' : 'active';
 
     // Create Manual Enrollment
-    const enrollment = await StudentEnrollment.create({
+    const enrollment = await Enrollment.create({
       teacher: teacher._id,
       name,
       class: studentClass,
@@ -103,7 +105,10 @@ export const manuallyAddStudent = async (req, res) => {
 // @access  Private (Teacher)
 export const markRequestPaid = async (req, res) => {
   try {
-    const enrollment = await StudentEnrollment.findById(req.params.id);
+    const enrollment = await Enrollment.findById(req.params.id).populate({
+      path: 'student',
+      populate: { path: 'user' }
+    });
     if (!enrollment) {
       return res.status(404).json({ message: { en: 'Enrollment registry not found.', hi: 'नामांकन रजिस्ट्री नहीं मिली।' } });
     }
@@ -133,6 +138,16 @@ export const markRequestPaid = async (req, res) => {
       dueAmount: 0
     });
 
+    if (enrollment.student && enrollment.student.user) {
+      await createNotification({
+        userId: enrollment.student.user._id.toString(),
+        title: 'Enrollment Confirmed',
+        message: `Your enrollment in ${req.user.name}'s ${enrollment.subject} class has been confirmed. You are now an active student.`,
+        type: 'MESSAGE',
+        link: '/student?tab=classroom'
+      });
+    }
+
     res.json({
       success: true,
       message: {
@@ -157,7 +172,7 @@ export const changeEnrollmentStatus = async (req, res) => {
       return res.status(400).json({ message: { en: 'Invalid status parameter.', hi: 'अमान्य स्थिति पैरामीटर।' } });
     }
 
-    const enrollment = await StudentEnrollment.findById(req.params.id);
+    const enrollment = await Enrollment.findById(req.params.id);
     if (!enrollment) {
       return res.status(404).json({ message: { en: 'Enrollment registry not found.', hi: 'नामांकन रजिस्ट्री नहीं मिली।' } });
     }
@@ -206,7 +221,10 @@ export const saveDailyAttendance = async (req, res) => {
     const savedRecords = [];
 
     for (const record of records) {
-      const enrollment = await StudentEnrollment.findById(record.enrollmentId);
+      const enrollment = await Enrollment.findById(record.enrollmentId).populate({
+        path: 'student',
+        populate: { path: 'user' }
+      });
       if (!enrollment || enrollment.teacher.toString() !== teacher._id.toString()) {
         continue; // Skip unauthorized or non-existing records
       }
@@ -230,6 +248,16 @@ export const saveDailyAttendance = async (req, res) => {
         status: record.status,
         notes: record.notes || ''
       });
+
+      if (enrollment.student && enrollment.student.user) {
+        await createNotification({
+          userId: enrollment.student.user._id.toString(),
+          title: 'Attendance Marked',
+          message: `${req.user.name} marked you ${record.status} for class ${enrollment.class} on ${new Date(date).toLocaleDateString()}.`,
+          type: 'ATTENDANCE_MARKED',
+          link: '/student?tab=classroom'
+        });
+      }
 
       savedRecords.push(entry);
     }
@@ -259,7 +287,10 @@ export const logMonthlyFee = async (req, res) => {
       return res.status(400).json({ message: { en: 'Enrollment ID, amount, and billing month are required.', hi: 'नामांकन आईडी, राशि और बिलिंग महीना आवश्यक हैं।' } });
     }
 
-    const enrollment = await StudentEnrollment.findById(enrollmentId);
+    const enrollment = await Enrollment.findById(enrollmentId).populate({
+      path: 'student',
+      populate: { path: 'user' }
+    });
     if (!enrollment) {
       return res.status(404).json({ message: { en: 'Enrollment registry not found.', hi: 'नामांकन रजिस्ट्री नहीं मिली।' } });
     }
@@ -296,6 +327,26 @@ export const logMonthlyFee = async (req, res) => {
       message: { en: 'Billing invoice log logged successfully under student accounts.', hi: 'बिलिंग चालान लॉग छात्र खातों के तहत सफलतापूर्वक लॉग किया गया।' },
       entry
     });
+
+    if (enrollment.student && enrollment.student.user) {
+      if (status === 'paid') {
+        await createNotification({
+          userId: enrollment.student.user._id.toString(),
+          title: 'Fee Payment Recorded',
+          message: `Your fee payment of ₹${amount} for ${month} has been recorded by ${req.user.name}.`,
+          type: 'MESSAGE',
+          link: '/student?tab=classroom'
+        });
+      } else {
+        await createNotification({
+          userId: enrollment.student.user._id.toString(),
+          title: 'Tuition Fees Due',
+          message: `Fees of ₹${amount} for ${month} are due. Please pay to ${req.user.name} by the due date.`,
+          type: 'FEE_DUE',
+          link: '/student?tab=classroom'
+        });
+      }
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: { en: 'Server error posting billing entries', hi: 'बिलिंग प्रविष्टियाँ पोस्ट करने में सर्वर त्रुटि' } });
@@ -307,7 +358,7 @@ export const logMonthlyFee = async (req, res) => {
 // @access  Private (Teacher)
 export const deleteEnrollment = async (req, res) => {
   try {
-    const enrollment = await StudentEnrollment.findById(req.params.id);
+    const enrollment = await Enrollment.findById(req.params.id);
     if (!enrollment) {
       return res.status(404).json({ message: { en: 'Enrollment registry not found.', hi: 'नामांकन रजिस्ट्री नहीं मिली।' } });
     }
@@ -317,12 +368,54 @@ export const deleteEnrollment = async (req, res) => {
       return res.status(401).json({ message: { en: 'Not authorized to delete this cohort record', hi: 'इस कोहोर्ट रिकॉर्ड को हटाने के लिए अधिकृत नहीं हैं' } });
     }
 
+    const { student: studentId, teacher: teacherId } = enrollment;
+
+    // Notify teacher
+    await createNotification({
+      userId: teacher.user.toString(),
+      title: 'Student Left Classroom',
+      message: `Student ${enrollment.name} has left or been removed from your ${enrollment.class} ${enrollment.subject} classroom.`,
+      type: 'MESSAGE',
+      link: '/teacher?tab=students'
+    });
+
+    // Notify student if they are online/registered
+    if (enrollment.student) {
+      const student = await Student.findById(enrollment.student).populate('user');
+      if (student && student.user) {
+        await createNotification({
+          userId: student.user._id.toString(),
+          title: 'Removed from Classroom',
+          message: `You have been removed or unenrolled from ${req.user.name}'s ${enrollment.class} ${enrollment.subject} classroom.`,
+          type: 'MESSAGE',
+          link: '/student?tab=classroom'
+        });
+      }
+    }
+
     // Delete cohort record
-    await StudentEnrollment.findByIdAndDelete(req.params.id);
+    await Enrollment.findByIdAndDelete(req.params.id);
     
     // Purge corresponding attendance sheets and invoice ledger sheets
     await Attendance.deleteMany({ studentEnrollment: req.params.id });
     await Fee.deleteMany({ studentEnrollment: req.params.id });
+
+    // Clean up connections if there are no other enrollments left
+    if (studentId) {
+      const otherEnrollments = await Enrollment.findOne({ teacher: teacherId, student: studentId });
+      if (!otherEnrollments) {
+        // No other enrollments left, delete global connection and clean up profiles
+        await TeacherStudentConnection.deleteOne({ teacher: teacherId, student: studentId });
+        
+        await Student.findByIdAndUpdate(studentId, {
+          $pull: { joinedTeachers: teacherId }
+        });
+        
+        await Teacher.findByIdAndUpdate(teacherId, {
+          $pull: { joinedStudents: studentId }
+        });
+      }
+    }
 
     res.json({
       success: true,
@@ -342,7 +435,7 @@ export const deleteEnrollment = async (req, res) => {
 // @access  Private (Teacher)
 export const getStudentFullHistory = async (req, res) => {
   try {
-    const enrollment = await StudentEnrollment.findById(req.params.id)
+    const enrollment = await Enrollment.findById(req.params.id)
       .populate({
         path: 'student',
         populate: { path: 'user', select: 'name email phone profilePhoto profileImage' }

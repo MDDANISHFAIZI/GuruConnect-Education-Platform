@@ -6,8 +6,10 @@ import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { 
   Globe, Menu, X, LogOut, User, ChevronDown, 
   Settings, BookOpen, Users, ClipboardCheck, 
-  DollarSign, UserPlus, Heart, MessageSquare, Shield 
+  DollarSign, UserPlus, Heart, MessageSquare, Shield,
+  Bell, CheckCheck
 } from 'lucide-react';
+import axios from 'axios';
 
 const Navbar = () => {
   const { t, i18n } = useTranslation();
@@ -18,7 +20,95 @@ const Navbar = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   
+  const [notifications, setNotifications] = useState([]);
+  const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+  
   const dropdownRef = useRef(null);
+  const notificationDropdownRef = useRef(null);
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const response = await axios.get('/api/notifications');
+      setNotifications(response.data || []);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  // Poll notifications
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      if (!notif.read) {
+        await axios.put(`/api/notifications/read/${notif._id}`);
+        setNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, read: true } : n));
+      }
+      setNotificationDropdownOpen(false);
+      if (notif.link) {
+        navigate(notif.link);
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await axios.put('/api/notifications/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'ENROLLMENT_REQUEST':
+        return <UserPlus size={14} />;
+      case 'ENROLLMENT_ACCEPTED':
+        return <ClipboardCheck size={14} />;
+      case 'NEW_NOTE':
+        return <BookOpen size={14} />;
+      case 'NEW_DOUBT':
+        return <MessageSquare size={14} />;
+      case 'DOUBT_REPLY':
+        return <MessageSquare size={14} className="text-emerald-500" />;
+      case 'ATTENDANCE_MARKED':
+        return <ClipboardCheck size={14} className="text-indigo-500" />;
+      case 'FEE_DUE':
+        return <DollarSign size={14} className="text-rose-500" />;
+      case 'ANNOUNCEMENT':
+        return <Globe size={14} className="text-amber-500" />;
+      default:
+        return <Bell size={14} />;
+    }
+  };
+
+  const formatTimeAgo = (dateStr) => {
+    try {
+      const diffMs = new Date() - new Date(dateStr);
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return i18n.language === 'hi' ? 'अभी' : 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays === 1) return i18n.language === 'hi' ? 'कल' : 'Yesterday';
+      return new Date(dateStr).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-US', { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Toggle bilingual state
   const toggleLanguage = () => {
@@ -31,6 +121,7 @@ const Navbar = () => {
     logout();
     setMobileMenuOpen(false);
     setDropdownOpen(false);
+    setNotificationDropdownOpen(false);
     navigate('/');
   };
 
@@ -39,6 +130,9 @@ const Navbar = () => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
+      }
+      if (notificationDropdownRef.current && !notificationDropdownRef.current.contains(event.target)) {
+        setNotificationDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -126,7 +220,105 @@ const Navbar = () => {
 
             {/* Auth Dropdowns / Premium Dropdown Section */}
             {user ? (
-              <div className="relative" ref={dropdownRef}>
+              <div className="flex items-center space-x-4">
+                {/* Bell Notification Icon */}
+                <div className="relative" ref={notificationDropdownRef}>
+                  <button
+                    onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
+                    className="relative p-2.5 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-brand-500 rounded-full transition-all duration-200 outline-none border border-slate-100 hover:border-slate-200 cursor-pointer"
+                  >
+                    <Bell size={20} className={unreadCount > 0 ? "animate-pulse" : ""} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-extrabold text-[10px] w-5 h-5 flex items-center justify-center rounded-full border border-white shadow-sm">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Notification Dropdown Panel */}
+                  {notificationDropdownOpen && (
+                    <div className="absolute right-0 mt-3 w-96 rounded-3xl bg-white border border-slate-150 shadow-premium p-4 z-[99] animate-fade-in flex flex-col max-h-[480px]">
+                      {/* Header */}
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
+                        <h3 className="font-outfit font-extrabold text-sm text-slate-800 flex items-center gap-2">
+                          <span>🔔 {i18n.language === 'hi' ? 'सूचनाएं' : 'Notifications'}</span>
+                          {unreadCount > 0 && (
+                            <span className="bg-rose-50 text-rose-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-100 font-sans">
+                              {unreadCount} {i18n.language === 'hi' ? 'नया' : 'new'}
+                            </span>
+                          )}
+                        </h3>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer transition-colors border-none bg-transparent"
+                          >
+                            <CheckCheck size={14} />
+                            <span>{i18n.language === 'hi' ? 'सभी पढ़े गए मार्क करें' : 'Mark all read'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Notification List (Scrollable) */}
+                      <div className="overflow-y-auto space-y-2 flex-grow pr-1 max-h-[350px]">
+                        {notifications.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-8 text-center space-y-2">
+                            <span className="text-3xl">📭</span>
+                            <p className="text-xs font-bold text-slate-400">
+                              {i18n.language === 'hi' ? 'कोई नई सूचना नहीं है' : 'No notifications yet'}
+                            </p>
+                          </div>
+                        ) : (
+                          notifications.map((notif) => (
+                            <div
+                              key={notif._id}
+                              onClick={() => handleNotificationClick(notif)}
+                              className={`p-3 rounded-2xl border text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm flex items-start gap-3 ${
+                                notif.read
+                                  ? 'bg-slate-50/50 border-slate-100/60 hover:bg-slate-50'
+                                  : 'bg-indigo-50/10 border-indigo-100/40 hover:bg-indigo-50/20'
+                              }`}
+                            >
+                              {/* Type-based Icon/Indicator */}
+                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                                notif.read ? 'bg-slate-100 text-slate-400' : 'bg-brand-50 text-brand-500'
+                              }`}>
+                                {getNotificationIcon(notif.type)}
+                              </div>
+
+                              {/* Text content */}
+                              <div className="flex-grow min-w-0">
+                                <div className="flex justify-between items-start gap-1">
+                                  <h4 className={`text-xs font-extrabold truncate ${
+                                    notif.read ? 'text-slate-600' : 'text-slate-800'
+                                  }`}>
+                                    {notif.title}
+                                  </h4>
+                                  <span className="text-[9px] text-slate-400 font-semibold shrink-0 mt-0.5">
+                                    {formatTimeAgo(notif.createdAt)}
+                                  </span>
+                                </div>
+                                <p className={`text-[11px] mt-1 break-words line-clamp-2 leading-relaxed ${
+                                  notif.read ? 'text-slate-400' : 'text-slate-600 font-medium'
+                                }`}>
+                                  {notif.message}
+                                </p>
+                              </div>
+
+                              {/* Unread dot */}
+                              {!notif.read && (
+                                <div className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0 mt-1.5 animate-pulse" />
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Profile Top Widget Trigger */}
+                <div className="relative" ref={dropdownRef}>
                 {/* Profile Top Widget Trigger */}
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -327,6 +519,7 @@ const Navbar = () => {
 
                   </div>
                 )}
+                </div>
               </div>
             ) : (
               <div className="flex items-center space-x-4">
@@ -360,17 +553,75 @@ const Navbar = () => {
           </div>
 
           {/* Mobile menu controls */}
-          <div className="flex items-center md:hidden space-x-3">
+          <div className="flex items-center md:hidden space-x-2.5">
+            {user && (
+              <div className="relative" ref={notificationDropdownRef}>
+                <button
+                  onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
+                  className="relative p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-colors cursor-pointer border-none"
+                >
+                  <Bell size={20} className={unreadCount > 0 ? "animate-pulse" : ""} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-extrabold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+                {notificationDropdownOpen && (
+                  <div className="absolute right-[-60px] sm:right-0 mt-3 w-80 sm:w-90 rounded-2xl bg-white border border-slate-150 shadow-lg p-3 z-[9999] animate-fade-in flex flex-col max-h-[400px]">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                      <span className="font-extrabold text-xs text-slate-800">🔔 {i18n.language === 'hi' ? 'सूचनाएं' : 'Notifications'}</span>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-[10px] font-bold text-brand-600 border-none bg-transparent"
+                        >
+                          {i18n.language === 'hi' ? 'सभी पढ़े गए' : 'Mark all read'}
+                        </button>
+                      )}
+                    </div>
+                    {/* Scroll list */}
+                    <div className="overflow-y-auto space-y-1.5 max-h-[300px]">
+                      {notifications.length === 0 ? (
+                        <p className="text-[10px] text-slate-400 py-4 text-center font-bold">
+                          {i18n.language === 'hi' ? 'कोई नई सूचना नहीं है' : 'No notifications yet'}
+                        </p>
+                      ) : (
+                        notifications.map(notif => (
+                          <div
+                            key={notif._id}
+                            onClick={() => handleNotificationClick(notif)}
+                            className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-start gap-2 ${
+                              notif.read ? 'bg-slate-50/50 border-slate-100' : 'bg-indigo-50/10 border-indigo-100'
+                            }`}
+                          >
+                            <div className="text-[10px] shrink-0 mt-0.5">{getNotificationIcon(notif.type)}</div>
+                            <div className="flex-grow min-w-0">
+                              <div className="flex justify-between items-center gap-1">
+                                <h4 className="text-[10px] font-bold truncate text-slate-800">{notif.title}</h4>
+                                <span className="text-[8px] text-slate-400 shrink-0">{formatTimeAgo(notif.createdAt)}</span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 mt-0.5 break-words line-clamp-2">{notif.message}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               onClick={toggleLanguage}
-              className="p-2.5 bg-slate-100 rounded-full text-slate-700 hover:bg-slate-200 transition-colors"
+              className="p-2.5 bg-slate-100 rounded-full text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
               title="Change Language"
             >
               <Globe size={20} className="text-brand-500" />
             </button>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              className="p-2.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               {mobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
             </button>

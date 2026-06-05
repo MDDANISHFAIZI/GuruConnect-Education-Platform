@@ -56,6 +56,16 @@ const StudentDashboard = () => {
   const [attendanceMetrics, setAttendanceMetrics] = useState({ totalDays: 0, presentDays: 0, absentDays: 0, percentage: 100 });
   const [attendanceHistory, setAttendanceHistory] = useState([]);
   const [isSubmittingDoubt, setIsSubmittingDoubt] = useState(false);
+  const [dashboardNotifications, setDashboardNotifications] = useState([]);
+
+  const fetchDashboardNotifications = async () => {
+    try {
+      const { data } = await axios.get('/api/notifications');
+      setDashboardNotifications(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     fetchStudentProfile();
@@ -63,6 +73,7 @@ const StudentDashboard = () => {
     fetchRequests();
     fetchBillingHistory();
     fetchClassroomData();
+    fetchDashboardNotifications();
 
     // Deep-linking based on search query params
     const params = new URLSearchParams(window.location.search);
@@ -642,6 +653,96 @@ const StudentDashboard = () => {
                 )}
               </div>
 
+              {/* Recent Notifications Widget */}
+              {dashboardNotifications.length > 0 && (
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-outfit font-black text-slate-900 text-base flex items-center gap-2">
+                      <span>🔔 {i18n.language === 'hi' ? 'हाल की सूचनाएं' : 'Recent Notifications'}</span>
+                      <span className="bg-brand-50 text-brand-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-brand-100 font-sans">
+                        {dashboardNotifications.filter(n => !n.read).length} {i18n.language === 'hi' ? 'अपठित' : 'unread'}
+                      </span>
+                    </h4>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await axios.put('/api/notifications/read-all');
+                          setDashboardNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      }}
+                      className="text-xs font-bold text-brand-600 hover:text-brand-700 transition-colors border-none bg-transparent cursor-pointer font-sans"
+                    >
+                      {i18n.language === 'hi' ? 'सभी को पढ़ा हुआ चिह्नित करें' : 'Mark all read'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {dashboardNotifications.slice(0, 4).map((notif) => (
+                      <div
+                        key={notif._id}
+                        onClick={async () => {
+                          try {
+                            if (!notif.read) {
+                              await axios.put(`/api/notifications/read/${notif._id}`);
+                              setDashboardNotifications(prev => prev.map(n => n._id === notif._id ? { ...n, read: true } : n));
+                            }
+                            if (notif.link) navigate(notif.link);
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className={`p-4 rounded-2xl border text-left cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm flex items-start gap-3 ${
+                          notif.read
+                            ? 'bg-slate-50/50 border-slate-100/60 hover:bg-slate-50'
+                            : 'bg-indigo-50/10 border-indigo-100/40 hover:bg-indigo-50/20'
+                        }`}
+                      >
+                        {/* Icon */}
+                        <div className={`p-2 rounded-xl shrink-0 ${
+                          notif.read ? 'bg-slate-100 text-slate-400' : 'bg-brand-50 text-brand-500'
+                        }`}>
+                          {notif.type === 'ENROLLMENT_REQUEST' ? <UserPlus size={14} /> :
+                           notif.type === 'ENROLLMENT_ACCEPTED' ? <Check size={14} className="text-emerald-500" /> :
+                           notif.type === 'NEW_NOTE' ? <BookOpen size={14} /> :
+                           notif.type === 'NEW_DOUBT' ? <MessageSquare size={14} /> :
+                           notif.type === 'DOUBT_REPLY' ? <MessageSquare size={14} className="text-emerald-500" /> :
+                           notif.type === 'ATTENDANCE_MARKED' ? <ClipboardCheck size={14} className="text-indigo-500" /> :
+                           notif.type === 'FEE_DUE' ? <DollarSign size={14} className="text-rose-500" /> :
+                           notif.type === 'ANNOUNCEMENT' ? <Globe size={14} className="text-amber-500" /> :
+                           <Bell size={14} />}
+                        </div>
+
+                        {/* Text */}
+                        <div className="flex-grow min-w-0">
+                          <div className="flex justify-between items-start gap-1">
+                            <h5 className={`text-xs font-extrabold truncate ${
+                              notif.read ? 'text-slate-600' : 'text-slate-800'
+                            }`}>
+                              {notif.title}
+                            </h5>
+                            <span className="text-[9px] text-slate-400 font-semibold shrink-0 font-sans mt-0.5">
+                              {new Date(notif.createdAt).toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                          <p className={`text-[11px] mt-1 break-words line-clamp-2 leading-relaxed ${
+                            notif.read ? 'text-slate-400' : 'text-slate-600 font-medium'
+                          }`}>
+                            {notif.message}
+                          </p>
+                        </div>
+
+                        {/* Unread Indicator */}
+                        {!notif.read && (
+                          <div className="w-2.5 h-2.5 bg-brand-500 rounded-full shrink-0 mt-1.5 animate-pulse" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Classroom Data views */}
               {joinedTeachers.length === 0 ? (
                 <div className="glass-card p-12 rounded-3xl border border-slate-100 text-center text-slate-400 font-medium bg-white flex flex-col items-center space-y-4">
@@ -657,9 +758,12 @@ const StudentDashboard = () => {
                   <div className="w-16 h-1 bg-brand-500 rounded-full"></div>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   
-                  {/* Classroom navigation sub-tabs */}
+                  {/* Classroom Data views */}
+                  <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8 space-y-6">
+                    
+                    {/* Classroom navigation sub-tabs */}
                   <div className="flex border-b border-slate-100 space-x-2 pb-px overflow-x-auto scrollbar-none">
                     {[
                       { id: 'announcements', label: i18n.language === 'hi' ? 'घोषणाएँ' : 'Announcements', icon: '📢' },
@@ -997,7 +1101,7 @@ const StudentDashboard = () => {
                                       })}
                                     </p>
                                     <p className="text-[10px] text-slate-400">
-                                      Taught by: {log.teacher?.user?.name || 'Local Teacher'}
+                                      Taught by: {log.teacher?.user?.name || 'Local Teacher'} {log.class ? `(${log.class})` : ''}
                                     </p>
                                   </div>
                                   <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase border shadow-3xs ${
@@ -1015,6 +1119,60 @@ const StudentDashboard = () => {
                       </div>
                     </div>
                   )}
+
+                  </div>
+
+                  {/* My Teachers Sidebar */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
+                      <div className="space-y-1">
+                        <h3 className="font-outfit font-extrabold text-base text-slate-900 flex items-center gap-1.5">
+                          <span>🎓</span>
+                          <span>{i18n.language === 'hi' ? 'मेरे शिक्षक' : 'My Teachers'}</span>
+                        </h3>
+                        <p className="text-[10px] text-slate-400 font-semibold">
+                          {i18n.language === 'hi'
+                            ? 'आपके सभी सक्रिय ट्यूशन शिक्षक।'
+                            : 'All of your active tutoring instructors.'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {joinedTeachers.map((teacher) => {
+                          const imgPath = teacher.user?.profileImage || teacher.user?.profilePhoto || teacher.profileImage || teacher.profilePhoto || '';
+                          return (
+                            <div key={teacher._id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 relative overflow-hidden group">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center overflow-hidden shrink-0 border border-slate-200 shadow-xs">
+                                  {renderProfilePhoto(imgPath, "w-full h-full object-cover")}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <h4 className="font-outfit font-bold text-slate-800 text-xs leading-tight">
+                                    {teacher.user?.name || 'Tutor'}
+                                  </h4>
+                                  <p className="text-[9px] font-black text-brand-600 uppercase tracking-wider">
+                                    {teacher.subjects?.join(', ')}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              <div className="text-[10px] text-slate-500 space-y-1 font-medium bg-white p-2.5 rounded-xl border border-slate-100/60">
+                                <p><span className="font-bold text-slate-600">Qualification:</span> {teacher.qualification}</p>
+                                <p><span className="font-bold text-slate-600">Timings:</span> {teacher.timings}</p>
+                                <p><span className="font-bold text-slate-600">Fees:</span> ₹{teacher.fees}/month</p>
+                                {teacher.user?.phone && (
+                                  <p className="flex items-center gap-1 mt-1 text-slate-600">
+                                    <Phone size={10} className="text-slate-400" />
+                                    <span className="font-mono">{teacher.user.phone}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
               )}

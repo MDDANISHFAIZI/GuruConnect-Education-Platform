@@ -1,12 +1,13 @@
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import Note from '../models/Note.js';
 import Doubt from '../models/Doubt.js';
 import Homework from '../models/Homework.js';
 import Announcement from '../models/Announcement.js';
 import Attendance from '../models/Attendance.js';
 import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
+import { createNotification, notifyStudents } from '../utils/notificationHelper.js';
 
 // Helper: Get list of accepted teacher IDs for a student
 const getConnectedTeacherIds = async (studentId) => {
@@ -42,6 +43,16 @@ export const uploadNote = async (req, res) => {
       class: className
     });
 
+    // Notify all students in this class for the teacher
+    await notifyStudents({
+      teacherId: teacher._id,
+      className,
+      title: 'New Study Material Uploaded',
+      message: `${req.user.name} uploaded new notes: "${title}" for ${className}.`,
+      type: 'NEW_NOTE',
+      link: '/student?tab=classroom'
+    });
+
     res.status(201).json({ success: true, note });
   } catch (error) {
     console.error('[UPLOAD NOTE ERROR]', error);
@@ -75,7 +86,7 @@ export const getStudentNotes = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
     if (studentEnrollments.length === 0) {
       return res.json([]);
     }
@@ -138,7 +149,7 @@ export const askDoubt = async (req, res) => {
     }
 
     // Verify student is connected to teacher and retrieve the class
-    const enrollment = await StudentEnrollment.findOne({
+    const enrollment = await Enrollment.findOne({
       student: student._id,
       teacher: teacherId,
       status: 'active'
@@ -154,6 +165,18 @@ export const askDoubt = async (req, res) => {
       question,
       class: enrollment.class
     });
+
+    // Notify teacher
+    const teacher = await Teacher.findById(teacherId).populate('user');
+    if (teacher && teacher.user) {
+      await createNotification({
+        userId: teacher.user._id.toString(),
+        title: 'New Doubt Submitted',
+        message: `${req.user.name} asked a doubt in ${enrollment.class}: "${question.substring(0, 50)}${question.length > 50 ? '...' : ''}"`,
+        type: 'NEW_DOUBT',
+        link: '/teacher?tab=doubts'
+      });
+    }
 
     res.status(201).json({ success: true, doubt });
   } catch (error) {
@@ -183,6 +206,21 @@ export const replyToDoubt = async (req, res) => {
     doubt.answer = answer;
     doubt.isResolved = true;
     await doubt.save();
+
+    // Notify student
+    const doubtWithStudent = await doubt.populate({
+      path: 'student',
+      populate: { path: 'user' }
+    });
+    if (doubtWithStudent.student && doubtWithStudent.student.user) {
+      await createNotification({
+        userId: doubtWithStudent.student.user._id.toString(),
+        title: 'Doubt Resolved',
+        message: `${req.user.name} replied to your doubt: "${answer.substring(0, 50)}${answer.length > 50 ? '...' : ''}"`,
+        type: 'DOUBT_REPLY',
+        link: '/student?tab=classroom'
+      });
+    }
 
     res.json({ success: true, doubt });
   } catch (error) {
@@ -223,7 +261,7 @@ export const getStudentDoubts = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
     if (studentEnrollments.length === 0) {
       return res.json([]);
     }
@@ -278,6 +316,16 @@ export const createHomework = async (req, res) => {
       class: className
     });
 
+    // Notify students
+    await notifyStudents({
+      teacherId: teacher._id,
+      className,
+      title: 'New Homework Assigned',
+      message: `${req.user.name} assigned new homework: "${title}" for ${className}.`,
+      type: 'NEW_NOTE',
+      link: '/student?tab=classroom'
+    });
+
     res.status(201).json({ success: true, homework });
   } catch (error) {
     console.error('[CREATE HOMEWORK ERROR]', error);
@@ -311,7 +359,7 @@ export const getStudentHomework = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
     if (studentEnrollments.length === 0) {
       return res.json([]);
     }
@@ -380,6 +428,16 @@ export const createAnnouncement = async (req, res) => {
       class: className || 'All'
     });
 
+    // Notify students
+    await notifyStudents({
+      teacherId: teacher._id,
+      className: className || 'All',
+      title: 'New Announcement',
+      message: `${req.user.name} posted an announcement: "${title}"`,
+      type: 'ANNOUNCEMENT',
+      link: '/student?tab=classroom'
+    });
+
     res.status(201).json({ success: true, announcement });
   } catch (error) {
     console.error('[CREATE ANNOUNCEMENT ERROR]', error);
@@ -413,7 +471,7 @@ export const getStudentAnnouncements = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await StudentEnrollment.find({ student: student._id, status: 'active' });
+    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
     if (studentEnrollments.length === 0) {
       return res.json([]);
     }
@@ -474,7 +532,7 @@ export const getStudentAttendanceMetrics = async (req, res) => {
     }
 
     // Find all enrollment records associated with this student
-    const enrollments = await StudentEnrollment.find({ student: student._id });
+    const enrollments = await Enrollment.find({ student: student._id });
     const enrollmentIds = enrollments.map(e => e._id);
 
     // Fetch full history logs of attendance

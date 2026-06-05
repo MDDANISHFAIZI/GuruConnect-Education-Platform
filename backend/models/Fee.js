@@ -8,7 +8,7 @@ const feeSchema = new mongoose.Schema({
   },
   studentEnrollment: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'StudentEnrollment',
+    ref: 'Enrollment',
     required: true
   },
   student: {

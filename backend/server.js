@@ -18,6 +18,7 @@ import requestRoutes from './routes/joinRequests.js';
 import enrollmentRoutes from './routes/enrollments.js';
 import connectionRoutes from './routes/connections.js';
 import classroomRoutes from './routes/classroom.js';
+import notificationRoutes from './routes/notifications.js';
 
 // Load variables
 dotenv.config();
@@ -45,6 +46,7 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/classroom', classroomRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Home route checker
 app.get('/', (req, res) => {

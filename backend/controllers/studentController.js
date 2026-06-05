@@ -1,7 +1,7 @@
 import Student from '../models/Student.js';
 import Favorite from '../models/Favorite.js';
 import User from '../models/User.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import Fee from '../models/Fee.js';
 import { uploadProfileImage } from '../utils/imageUpload.js';
 
@@ -11,14 +11,7 @@ import { uploadProfileImage } from '../utils/imageUpload.js';
 export const getStudentProfile = async (req, res) => {
   try {
     const student = await Student.findOne({ user: req.user._id })
-      .populate('user', 'name email phone profilePhoto profileImage')
-      .populate({
-        path: 'joinedTeachers',
-        populate: {
-          path: 'user',
-          select: 'name email phone profilePhoto profileImage'
-        }
-      });
+      .populate('user', 'name email phone profilePhoto profileImage');
     if (!student) {
       return res.status(404).json({
         message: {
@@ -27,7 +20,29 @@ export const getStudentProfile = async (req, res) => {
         }
       });
     }
-    res.json(student);
+
+    // Dynamically query unique teachers from active enrollments
+    const activeEnrollments = await Enrollment.find({ student: student._id, status: 'active' })
+      .populate({
+        path: 'teacher',
+        populate: {
+          path: 'user',
+          select: 'name email phone profilePhoto profileImage'
+        }
+      });
+
+    const seenTeachers = new Set();
+    const dynamicTeachers = [];
+    for (const enr of activeEnrollments) {
+      if (enr.teacher && !seenTeachers.has(enr.teacher._id.toString())) {
+        seenTeachers.add(enr.teacher._id.toString());
+        dynamicTeachers.push(enr.teacher);
+      }
+    }
+
+    const studentObj = student.toObject();
+    studentObj.joinedTeachers = dynamicTeachers;
+    res.json(studentObj);
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -97,15 +112,30 @@ export const updateStudentProfile = async (req, res) => {
     }
 
     const updatedStudent = await Student.findOne({ user: req.user._id })
-      .populate('user', 'name email phone profilePhoto profileImage profileImagePublicId')
+      .populate('user', 'name email phone profilePhoto profileImage profileImagePublicId');
+
+    // Dynamically query unique teachers from active enrollments
+    const activeEnrollments = await Enrollment.find({ student: updatedStudent._id, status: 'active' })
       .populate({
-        path: 'joinedTeachers',
+        path: 'teacher',
         populate: {
           path: 'user',
           select: 'name email phone profilePhoto profileImage profileImagePublicId'
         }
       });
-    res.json(updatedStudent);
+
+    const seenTeachers = new Set();
+    const dynamicTeachers = [];
+    for (const enr of activeEnrollments) {
+      if (enr.teacher && !seenTeachers.has(enr.teacher._id.toString())) {
+        seenTeachers.add(enr.teacher._id.toString());
+        dynamicTeachers.push(enr.teacher);
+      }
+    }
+
+    const studentObj = updatedStudent.toObject();
+    studentObj.joinedTeachers = dynamicTeachers;
+    res.json(studentObj);
   } catch (error) {
     console.error(error);
     res.status(500).json({

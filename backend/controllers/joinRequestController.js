@@ -1,8 +1,9 @@
 import JoinRequest from '../models/JoinRequest.js';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
-import StudentEnrollment from '../models/StudentEnrollment.js';
+import Enrollment from '../models/Enrollment.js';
 import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
+import { createNotification } from '../utils/notificationHelper.js';
 
 // @desc    Send a tuition join request to a teacher
 // @route   POST /api/requests/join
@@ -63,18 +64,19 @@ export const sendJoinRequest = async (req, res) => {
       });
     }
 
-    // Check if duplicate pending or accepted request already exists
+    // Check if duplicate pending or accepted request already exists for the same subject
     const existingRequest = await JoinRequest.findOne({
       student: student._id,
       teacher: teacherId,
+      subject,
       status: { $in: ['pending', 'accepted'] }
     });
 
     if (existingRequest) {
       return res.status(400).json({
         message: {
-          en: 'You have already sent an active request to this teacher.',
-          hi: 'आप पहले ही इस शिक्षक को एक सक्रिय अनुरोध भेज चुके हैं।'
+          en: 'You have already sent an active request for this subject to this teacher.',
+          hi: 'आप पहले ही इस विषय के लिए इस शिक्षक को एक सक्रिय अनुरोध भेज चुके हैं।'
         }
       });
     }
@@ -87,6 +89,15 @@ export const sendJoinRequest = async (req, res) => {
       parentPhone: parentPhone || '',
       message: message || '',
       status: 'pending'
+    });
+
+    // Notify teacher
+    await createNotification({
+      userId: teacher.user.toString(),
+      title: 'New Enrollment Request',
+      message: `${student.user?.name || 'A student'} has requested to join your ${subject} batch (Class: ${student.class}).`,
+      type: 'ENROLLMENT_REQUEST',
+      link: '/teacher?tab=requests'
     });
 
     res.status(201).json({
@@ -233,17 +244,20 @@ export const acceptJoinRequest = async (req, res) => {
 
       // Create a student enrollment registry as pending
       // Check if enrollment already exists to prevent duplicate
-      let enrollment = await StudentEnrollment.findOne({
+      const className = student.class || 'Class 10';
+      let enrollment = await Enrollment.findOne({
         teacher: teacher._id,
-        student: student._id
+        student: student._id,
+        class: className,
+        subject: request.subject
       });
 
       if (!enrollment) {
-        enrollment = await StudentEnrollment.create({
+        enrollment = await Enrollment.create({
           teacher: teacher._id,
           student: student._id,
           name: student.user?.name || 'Online Student',
-          class: student.class || 'Class 10',
+          class: className,
           subject: request.subject,
           fees: teacher.fees || 500,
           parentPhone: request.parentPhone || student.user?.phone || '',
@@ -252,12 +266,32 @@ export const acceptJoinRequest = async (req, res) => {
         });
       }
 
-      // Create / Update connection as pending
-      await TeacherStudentConnection.findOneAndUpdate(
-        { teacher: teacher._id, student: student._id },
-        { status: 'pending' },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      // Create / Update connection as pending only if not already connected/accepted
+      const existingConn = await TeacherStudentConnection.findOne({ teacher: teacher._id, student: student._id });
+      if (!existingConn) {
+        await TeacherStudentConnection.create({
+          teacher: teacher._id,
+          student: student._id,
+          status: 'pending'
+        });
+      }
+      // Notify student
+      await createNotification({
+        userId: student.user._id.toString(),
+        title: 'Enrollment Request Accepted',
+        message: `Your request to join ${req.user.name}'s ${request.subject} class has been accepted.`,
+        type: 'ENROLLMENT_ACCEPTED',
+        link: '/student?tab=classroom'
+      });
+
+      // Notify teacher (Student Joined Classroom)
+      await createNotification({
+        userId: teacher.user.toString(),
+        title: 'Student Joined Classroom',
+        message: `${student.user?.name || 'Online Student'} has joined your Classroom for ${className} ${request.subject}.`,
+        type: 'MESSAGE',
+        link: '/teacher?tab=students'
+      });
     }
 
     res.json({
@@ -309,6 +343,22 @@ export const rejectJoinRequest = async (req, res) => {
     request.status = 'rejected';
     await request.save();
 
+    // Notify student
+    await request.populate({
+      path: 'student',
+      populate: { path: 'user' }
+    });
+
+    if (request.student && request.student.user) {
+      await createNotification({
+        userId: request.student.user._id.toString(),
+        title: 'Enrollment Request Update',
+        message: `Your request to join ${req.user.name}'s ${request.subject} class was not accepted at this time.`,
+        type: 'MESSAGE',
+        link: '/student?tab=explore'
+      });
+    }
+
     res.json({
       success: true,
       message: {
@@ -343,13 +393,9 @@ export const getStudentProfileForTeacher = async (req, res) => {
       });
     }
 
-    // Find student profile, populate base user info + joined teachers names
+    // Find student profile, populate base user info
     const student = await Student.findById(req.params.id)
-      .populate('user', 'name email phone profilePhoto profileImage')
-      .populate({
-        path: 'joinedTeachers',
-        populate: { path: 'user', select: 'name subjects' }
-      });
+      .populate('user', 'name email phone profilePhoto profileImage');
 
     if (!student) {
       return res.status(404).json({
@@ -360,7 +406,25 @@ export const getStudentProfileForTeacher = async (req, res) => {
       });
     }
 
-    res.json(student);
+    // Dynamically query unique teachers from active enrollments
+    const activeEnrollments = await Enrollment.find({ student: student._id, status: 'active' })
+      .populate({
+        path: 'teacher',
+        populate: { path: 'user', select: 'name subjects' }
+      });
+
+    const seenTeachers = new Set();
+    const dynamicTeachers = [];
+    for (const enr of activeEnrollments) {
+      if (enr.teacher && !seenTeachers.has(enr.teacher._id.toString())) {
+        seenTeachers.add(enr.teacher._id.toString());
+        dynamicTeachers.push(enr.teacher);
+      }
+    }
+
+    const studentObj = student.toObject();
+    studentObj.joinedTeachers = dynamicTeachers;
+    res.json(studentObj);
   } catch (error) {
     console.error(error);
     res.status(500).json({

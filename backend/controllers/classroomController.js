@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
 import Enrollment from '../models/Enrollment.js';
@@ -8,6 +11,10 @@ import Announcement from '../models/Announcement.js';
 import Attendance from '../models/Attendance.js';
 import TeacherStudentConnection from '../models/TeacherStudentConnection.js';
 import { createNotification, notifyStudents } from '../utils/notificationHelper.js';
+import AIServiceBridge from '../services/aiService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Helper: Get list of accepted teacher IDs for a student
 const getConnectedTeacherIds = async (studentId) => {
@@ -18,13 +25,52 @@ const getConnectedTeacherIds = async (studentId) => {
   return connections.map(c => c.teacher);
 };
 
+// Helper: Build robust multi-source authorized query for student classroom access
+const getStudentAuthorizedClassroomQuery = async (student) => {
+  const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
+  const connections = await TeacherStudentConnection.find({ student: student._id, status: 'accepted' });
+
+  const teacherIds = new Set();
+  if (student.joinedTeachers && Array.isArray(student.joinedTeachers)) {
+    student.joinedTeachers.forEach(t => {
+      if (t) teacherIds.add(t._id ? t._id.toString() : t.toString());
+    });
+  }
+  connections.forEach(c => {
+    if (c.teacher) teacherIds.add(c.teacher.toString());
+  });
+  studentEnrollments.forEach(e => {
+    if (e.teacher) teacherIds.add(e.teacher.toString());
+  });
+
+  const orClauses = [];
+  studentEnrollments.forEach(se => {
+    orClauses.push({ teacher: se.teacher, class: se.class });
+    orClauses.push({ teacher: se.teacher, class: 'All' });
+  });
+
+  if (teacherIds.size > 0) {
+    if (student.class) {
+      orClauses.push({ teacher: { $in: Array.from(teacherIds) }, class: student.class });
+    }
+    orClauses.push({ teacher: { $in: Array.from(teacherIds) }, class: 'All' });
+    orClauses.push({ teacher: { $in: Array.from(teacherIds) } });
+  }
+
+  if (orClauses.length === 0) {
+    return null;
+  }
+
+  return { $or: orClauses };
+};
+
 // ==========================================
 // 1. NOTES SYSTEM CONTROLLERS
 // ==========================================
 
 export const uploadNote = async (req, res) => {
   try {
-    const { title, fileUrl, fileType, class: className } = req.body;
+    const { title, fileUrl, fileType, class: className, subject, rawContent } = req.body;
     
     if (!title || !fileUrl || !className) {
       return res.status(400).json({ message: { en: 'Title, File URL, and Class are required', hi: 'शीर्षक, फ़ाइल URL और कक्षा आवश्यक हैं' } });
@@ -35,13 +81,63 @@ export const uploadNote = async (req, res) => {
       return res.status(404).json({ message: { en: 'Teacher profile not found.', hi: 'शिक्षक प्रोफ़ाइल नहीं मिली।' } });
     }
 
+    let savedFileUrl = fileUrl;
+    let localDiskPath = '';
+
+    // If teacher uploaded a direct file as a base64 data URL, persist it to disk
+    if (fileUrl.startsWith('data:')) {
+      try {
+        const uploadsDir = path.join(__dirname, '../public/uploads/notes');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+
+        const matches = fileUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const ext = fileType === 'docx' ? 'docx' : 'pdf';
+        const filename = `note_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+        localDiskPath = path.join(uploadsDir, filename);
+
+        if (matches && matches[2]) {
+          const buffer = Buffer.from(matches[2], 'base64');
+          fs.writeFileSync(localDiskPath, buffer);
+          savedFileUrl = `/uploads/notes/${filename}`;
+        }
+      } catch (fileSaveErr) {
+        console.warn('[NOTE FILE PERSISTENCE WARNING]', fileSaveErr.message);
+      }
+    }
+
     const note = await Note.create({
       teacher: teacher._id,
       title,
-      fileUrl,
+      fileUrl: savedFileUrl,
       fileType: fileType || 'pdf',
-      class: className
+      class: className,
+      subject: subject || 'General',
+      rawContent: rawContent || ''
     });
+
+    // Asynchronously ingest note into GuruAI RAG Vector Store
+    // Pass local disk path if saved, otherwise the fileUrl or base64 string
+    const ingestPayloadUrl = localDiskPath || savedFileUrl;
+    AIServiceBridge.ingestDocument({
+      materialId: note._id,
+      teacherId: teacher._id,
+      teacherName: req.user.name,
+      className,
+      title,
+      fileUrl: ingestPayloadUrl,
+      fileType: fileType || 'pdf',
+      rawContent,
+      subject: subject || 'General'
+    }).then(async (result) => {
+      if (result && result.success) {
+        note.isIndexed = true;
+        note.indexedAt = new Date();
+        note.chunkCount = result.chunkCount || 1;
+        await note.save();
+      }
+    }).catch(err => console.warn('[NOTE AI INGEST NON-FATAL ERROR]', err.message));
 
     // Notify all students in this class for the teacher
     await notifyStudents({
@@ -53,12 +149,13 @@ export const uploadNote = async (req, res) => {
       link: '/student?tab=classroom'
     });
 
-    res.status(201).json({ success: true, note });
+    res.status(201).json(note);
   } catch (error) {
     console.error('[UPLOAD NOTE ERROR]', error);
-    res.status(500).json({ message: { en: 'Server error uploading note', hi: 'नोट अपलोड करने में सर्वर त्रुटि' } });
+    res.status(500).json({ message: { en: 'Error saving study note.', hi: 'अध्ययन नोट सहेजने में त्रुटि।' } });
   }
 };
+
 
 export const getTeacherNotes = async (req, res) => {
   try {
@@ -69,7 +166,9 @@ export const getTeacherNotes = async (req, res) => {
 
     const { class: className } = req.query;
     const filter = { teacher: teacher._id };
-    if (className) filter.class = className;
+    if (className && className !== 'All' && className !== 'undefined' && className !== 'null') {
+      filter.class = className;
+    }
 
     const notes = await Note.find(filter).sort({ createdAt: -1 });
     res.json(notes);
@@ -86,17 +185,10 @@ export const getStudentNotes = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
-    if (studentEnrollments.length === 0) {
+    const query = await getStudentAuthorizedClassroomQuery(student);
+    if (!query) {
       return res.json([]);
     }
-
-    const query = {
-      $or: studentEnrollments.map(se => ({
-        teacher: se.teacher,
-        class: se.class
-      }))
-    };
 
     const notes = await Note.find(query)
       .populate({
@@ -123,6 +215,9 @@ export const deleteNote = async (req, res) => {
     if (!note) {
       return res.status(404).json({ message: { en: 'Note not found.', hi: 'नोट नहीं मिला।' } });
     }
+
+    // Remove document chunks from GuruAI Vector Store
+    AIServiceBridge.deleteDocument(note._id).catch(err => console.warn('[NOTE AI DELETE NON-FATAL ERROR]', err.message));
 
     res.json({ success: true, message: { en: 'Note deleted.', hi: 'नोट हटा दिया गया।' } });
   } catch (error) {
@@ -238,7 +333,9 @@ export const getTeacherDoubts = async (req, res) => {
 
     const { class: className } = req.query;
     const filter = { teacher: teacher._id };
-    if (className) filter.class = className;
+    if (className && className !== 'All' && className !== 'undefined' && className !== 'null') {
+      filter.class = className;
+    }
 
     const doubts = await Doubt.find(filter)
       .populate({
@@ -261,17 +358,10 @@ export const getStudentDoubts = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
-    if (studentEnrollments.length === 0) {
+    const query = await getStudentAuthorizedClassroomQuery(student);
+    if (!query) {
       return res.json([]);
     }
-
-    const query = {
-      $or: studentEnrollments.map(se => ({
-        teacher: se.teacher,
-        class: se.class
-      }))
-    };
 
     const doubts = await Doubt.find(query)
       .populate({
@@ -342,7 +432,9 @@ export const getTeacherHomework = async (req, res) => {
 
     const { class: className } = req.query;
     const filter = { teacher: teacher._id };
-    if (className) filter.class = className;
+    if (className && className !== 'All' && className !== 'undefined' && className !== 'null') {
+      filter.class = className;
+    }
 
     const homework = await Homework.find(filter).sort({ createdAt: -1 });
     res.json(homework);
@@ -359,17 +451,10 @@ export const getStudentHomework = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
-    if (studentEnrollments.length === 0) {
+    const query = await getStudentAuthorizedClassroomQuery(student);
+    if (!query) {
       return res.json([]);
     }
-
-    const query = {
-      $or: studentEnrollments.map(se => ({
-        teacher: se.teacher,
-        class: se.class
-      }))
-    };
 
     const homework = await Homework.find(query)
       .populate({
@@ -454,7 +539,9 @@ export const getTeacherAnnouncements = async (req, res) => {
 
     const { class: className } = req.query;
     const filter = { teacher: teacher._id };
-    if (className) filter.class = className;
+    if (className && className !== 'All' && className !== 'undefined' && className !== 'null') {
+      filter.class = className;
+    }
 
     const announcements = await Announcement.find(filter).sort({ createdAt: -1 });
     res.json(announcements);
@@ -471,21 +558,10 @@ export const getStudentAnnouncements = async (req, res) => {
       return res.status(404).json({ message: { en: 'Student profile not found.', hi: 'छात्र प्रोफ़ाइल नहीं मिली।' } });
     }
 
-    const studentEnrollments = await Enrollment.find({ student: student._id, status: 'active' });
-    if (studentEnrollments.length === 0) {
+    const query = await getStudentAuthorizedClassroomQuery(student);
+    if (!query) {
       return res.json([]);
     }
-
-    // A student can see announcements if:
-    // (1) teacher is se.teacher AND class is se.class
-    // OR
-    // (2) teacher is se.teacher AND class is 'All'
-    const query = {
-      $or: studentEnrollments.flatMap(se => [
-        { teacher: se.teacher, class: se.class },
-        { teacher: se.teacher, class: 'All' }
-      ])
-    };
 
     const announcements = await Announcement.find(query)
       .populate({

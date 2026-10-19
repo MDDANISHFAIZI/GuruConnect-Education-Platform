@@ -6,11 +6,13 @@ import { useAuth } from '../context/AuthContext';
 import {
   Star, MapPin, Award, Trash2, Save, BookOpen, GraduationCap, AlertCircle, Clock, Check, X,
   ExternalLink, Phone, Download, MessageSquare, Calendar, Bell, FileText, Sparkles, Search,
-  Copy, Plus, Info, Percent, ChevronRight
+  Copy, Plus, Info, Percent, ChevronRight, Bot, UserPlus, ClipboardCheck, DollarSign, Globe
 } from 'lucide-react';
 import StarRating from '../components/StarRating';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
 import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
+import GuruAIHub from '../components/GuruAI/GuruAIHub';
+import LearningPreferencesModal from '../components/GuruAI/LearningPreferencesModal';
 
 const StudentDashboard = () => {
   const { t, i18n } = useTranslation();
@@ -19,6 +21,11 @@ const StudentDashboard = () => {
 
   // Student Profile fields
   const [studentClass, setStudentClass] = useState('');
+  const [subjects, setSubjects] = useState([]);
+  const [curriculum, setCurriculum] = useState('CBSE');
+  const [preferredLanguage, setPreferredLanguage] = useState('English');
+  const [showPreferencesPrompt, setShowPreferencesPrompt] = useState(false);
+  const [isPrefModalOpen, setIsPrefModalOpen] = useState(false);
   const [school, setSchool] = useState('');
   const [address, setAddress] = useState('');
   const [name, setName] = useState('');
@@ -79,7 +86,9 @@ const StudentDashboard = () => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
     if (tabParam) {
-      if (tabParam === 'classroom') {
+      if (tabParam === 'ai' || tabParam === 'guruai') {
+        setMainTab('ai');
+      } else if (tabParam === 'classroom') {
         setMainTab('classroom');
       } else if (tabParam === 'billing' || tabParam === 'fees') {
         setMainTab('billing');
@@ -100,16 +109,27 @@ const StudentDashboard = () => {
     try {
       const { data } = await axios.get('/api/students/profile');
       if (data) {
-        setStudentClass(data.class);
-        setSchool(data.school);
-        setAddress(data.address);
-        setName(data.user.name);
-        setPhone(data.user.phone);
+        setStudentClass(data.class || '');
+        setSubjects(data.subjects || []);
+        setCurriculum(data.curriculum || 'CBSE');
+        setPreferredLanguage(data.preferredLanguage || 'English');
+        setSchool(data.school || '');
+        setAddress(data.address || '');
+        setName(data.user?.name || '');
+        setPhone(data.user?.phone || '');
         setJoinedTeachers(data.joinedTeachers || []);
         
+        // Show lightweight setup prompt if essential learning preferences are missing
+        if (!data.class || !data.subjects || data.subjects.length === 0) {
+          setShowPreferencesPrompt(true);
+        } else {
+          setShowPreferencesPrompt(false);
+        }
+
         // Auto-select first teacher for doubts
-        if (data.joinedTeachers && data.joinedTeachers.length > 0 && !doubtTargetTeacher) {
-          setDoubtTargetTeacher(data.joinedTeachers[0]._id);
+        const validTeachers = (data.joinedTeachers || []).filter(t => t && t._id);
+        if (validTeachers.length > 0 && !doubtTargetTeacher) {
+          setDoubtTargetTeacher(validTeachers[0]._id);
         }
       }
     } catch (err) {
@@ -124,6 +144,7 @@ const StudentDashboard = () => {
     const studentClassNum = parseInt(match[0], 10);
     
     return joinedTeachers.filter(teacher => {
+      if (!teacher || typeof teacher !== 'object') return false;
       const from = teacher.teachesFrom !== undefined ? teacher.teachesFrom : 1;
       const to = teacher.teachesTo !== undefined ? teacher.teachesTo : 12;
       return studentClassNum < from || studentClassNum > to;
@@ -193,6 +214,9 @@ const StudentDashboard = () => {
         name,
         phone,
         class: studentClass,
+        subjects,
+        curriculum,
+        preferredLanguage,
         school,
         address
       });
@@ -441,30 +465,38 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden mb-8 shadow-premium">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="relative z-10 space-y-2">
-          <span className="bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-extrabold text-[10px] uppercase tracking-widest px-3 py-1 rounded-full">
-            {t('dashboard.student.statsBadge')}
-          </span>
-          <h1 className="font-outfit font-black text-3xl flex flex-wrap items-center gap-2">
-            <span>{t('dashboard.welcome', { name: name || user?.name })}</span>
-            {user?.emailVerified ? (
-              <span className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                ✓ Verified
-              </span>
-            ) : (
-              <span className="bg-rose-500/20 border border-rose-500/30 text-rose-300 font-extrabold text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                ⚠ Unverified
-              </span>
-            )}
-          </h1>
-          <p className="text-slate-400 text-sm max-w-lg font-medium">
-            {t('dashboard.student.title')}
-          </p>
+      {/* Dismissible setup prompt if student class or subjects are missing */}
+      {showPreferencesPrompt && (
+        <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 rounded-3xl p-5 text-white mb-6 shadow-md flex flex-col sm:flex-row items-center justify-between gap-4 animate-fade-in text-left">
+          <div className="flex items-center space-x-3 text-center sm:text-left">
+            <Sparkles size={24} className="shrink-0 text-yellow-200 hidden sm:block animate-pulse" />
+            <div>
+              <h3 className="font-outfit font-black text-base">
+                {i18n.language === 'hi' ? 'अपनी अध्ययन प्रोफ़ाइल सेट करें! (30 सेकंड)' : 'Personalize Your Study Buddy in 30 Seconds!'}
+              </h3>
+              <p className="text-white/90 text-xs font-semibold mt-0.5">
+                {i18n.language === 'hi'
+                  ? 'अपनी कक्षा और अध्ययन के विषय चुनें ताकि गुरुएआई आपके पाठ्यक्रम के अनुसार व्याख्या और क्विज़ तैयार कर सके।'
+                  : 'Select your class and subjects so GuruAI can tailor explanations, homework guidance, and practice quizzes to your syllabus.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              onClick={() => setIsPrefModalOpen(true)}
+              className="bg-white hover:bg-slate-50 text-orange-600 font-black text-xs px-5 py-2.5 rounded-xl active:scale-95 transition-all shadow cursor-pointer border border-transparent"
+            >
+              {i18n.language === 'hi' ? 'अभी सेट करें' : 'Set Up Preferences'}
+            </button>
+            <button
+              onClick={() => setShowPreferencesPrompt(false)}
+              className="hover:bg-white/10 p-2 rounded-full transition-colors cursor-pointer border border-transparent text-white"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
@@ -488,6 +520,21 @@ const StudentDashboard = () => {
                   {joinedTeachers.length}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setMainTab('ai')}
+              className={`pb-3 font-outfit font-extrabold text-sm tracking-wide border-b-2 transition-all flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
+                mainTab === 'ai'
+                  ? 'border-orange-500 text-orange-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <span>🤖</span>
+              <span>{i18n.language === 'hi' ? 'गुरुएआई — स्टडी बडी' : 'GuruAI — Study Buddy'}</span>
+              <span className="bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 animate-pulse">
+                AI
+              </span>
             </button>
 
             <button
@@ -925,15 +972,26 @@ const StudentDashboard = () => {
                                 </div>
                               </div>
                               
-                              <a
-                                href={n.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer border border-transparent hover:border-brand-100 shadow-2xs bg-white"
-                                title="Open / Download Lecture Note"
-                              >
-                                <Download size={14} />
-                              </a>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setMainTab('ai')}
+                                  className="p-2 text-orange-600 hover:text-white hover:bg-orange-500 bg-orange-50 rounded-xl transition-all flex items-center space-x-1 cursor-pointer text-[10px] font-bold shadow-3xs"
+                                  title="Ask GuruAI about this note"
+                                >
+                                  <Sparkles size={12} />
+                                  <span className="hidden sm:inline">Ask AI</span>
+                                </button>
+                                <a
+                                  href={n.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2.5 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer border border-transparent hover:border-brand-100 shadow-2xs bg-white"
+                                  title="Open / Download Lecture Note"
+                                >
+                                  <Download size={14} />
+                                </a>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1494,9 +1552,49 @@ const StudentDashboard = () => {
             </div>
           )}
 
+          {/* ========================================================
+              TAB 4: GURUAI STUDY HUB
+              ======================================================== */}
+          {mainTab === 'ai' && (
+            <GuruAIHub
+              studentClass={studentClass}
+              joinedTeachers={joinedTeachers}
+              userName={name || user?.name || ''}
+              subjects={subjects}
+              curriculum={curriculum}
+              preferredLanguage={preferredLanguage}
+              onPreferencesUpdated={(newPrefs) => {
+                if (newPrefs.studentClass) setStudentClass(newPrefs.studentClass);
+                if (newPrefs.subjects) setSubjects(newPrefs.subjects);
+                if (newPrefs.curriculum) setCurriculum(newPrefs.curriculum);
+                if (newPrefs.preferredLanguage) setPreferredLanguage(newPrefs.preferredLanguage);
+                setShowPreferencesPrompt(false);
+                triggerAlert(i18n.language === 'hi' ? 'सीखने की प्राथमिकताएं सफलतापूर्वक अपडेट की गईं!' : 'Learning preferences updated successfully!');
+              }}
+            />
+          )}
+
         </div>
 
       </div>
+
+      {/* Global Learning Preferences Modal */}
+      <LearningPreferencesModal
+        isOpen={isPrefModalOpen}
+        onClose={() => setIsPrefModalOpen(false)}
+        currentClass={studentClass}
+        currentSubjects={subjects}
+        currentCurriculum={curriculum}
+        currentLanguage={preferredLanguage}
+        onSaved={(newPrefs) => {
+          if (newPrefs.studentClass) setStudentClass(newPrefs.studentClass);
+          if (newPrefs.subjects) setSubjects(newPrefs.subjects);
+          if (newPrefs.curriculum) setCurriculum(newPrefs.curriculum);
+          if (newPrefs.preferredLanguage) setPreferredLanguage(newPrefs.preferredLanguage);
+          setShowPreferencesPrompt(false);
+          triggerAlert(i18n.language === 'hi' ? 'सीखने की प्राथमिकताएं सहेजी गईं!' : 'Learning preferences saved!');
+        }}
+      />
 
     </div>
   );

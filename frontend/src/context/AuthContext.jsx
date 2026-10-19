@@ -66,10 +66,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Register Handler
-  const register = async (name, email, password, role, phone, profilePhoto) => {
+  const register = async (name, email, password, role, phone, profilePhoto, extraData = {}) => {
     try {
       setLoading(true);
-      const { data } = await axios.post('/api/auth/register', { name, email, password, role, phone, profilePhoto });
+      const payload = { name, email, password, role, phone, profilePhoto, ...extraData };
+      const { data } = await axios.post('/api/auth/register', payload);
       localStorage.setItem('token', data.token);
       
       // Immediately fetch complete User payload

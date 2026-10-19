@@ -3,3 +3,10 @@ node_modules
 dist
 build
 coverage
+__pycache__/
+*.py[cod]
+*$py.class
+scratch/
+.pytest_cache/
+.DS_Store
+Thumbs.db

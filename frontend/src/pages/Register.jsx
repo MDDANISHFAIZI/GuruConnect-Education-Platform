@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Lock, Phone, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Phone, AlertCircle, Sparkles, Eye, EyeOff, GraduationCap } from 'lucide-react';
+import { CLASS_OPTIONS, SUBJECT_OPTIONS, LANGUAGE_OPTIONS } from '../utils/studentCurriculum';
 
 const Register = ({ role }) => {
   const { t, i18n } = useTranslation();
@@ -14,9 +15,23 @@ const Register = ({ role }) => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
+  const [studentClass, setStudentClass] = useState('Class 7');
+  const [curriculum, setCurriculum] = useState('CBSE');
+  const [subjects, setSubjects] = useState(['Maths', 'Science']);
+  const [preferredLanguage, setPreferredLanguage] = useState('English');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const toggleSubject = (subName) => {
+    if (subjects.includes(subName)) {
+      if (subjects.length > 1) {
+        setSubjects(prev => prev.filter(s => s !== subName));
+      }
+    } else {
+      setSubjects(prev => [...prev, subName]);
+    }
+  };
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
@@ -49,7 +64,8 @@ const Register = ({ role }) => {
     }
 
     setLoading(true);
-    const result = await register(name, email, password, role, phone, profilePhoto);
+    const extraData = !isTeacher ? { class: studentClass, curriculum, subjects, preferredLanguage } : {};
+    const result = await register(name, email, password, role, phone, profilePhoto, extraData);
     setLoading(false);
 
     if (result.success) {
@@ -236,6 +252,87 @@ const Register = ({ role }) => {
                 </button>
               </div>
             </div>
+
+            {/* Student Grade, Curriculum, Language & Subjects (Only for Students) */}
+            {!isTeacher && (
+              <div className="space-y-3.5 pt-1 text-left">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                      <GraduationCap size={14} className="text-brand-500" />
+                      <span>Class / Grade</span>
+                    </label>
+                    <select
+                      value={studentClass}
+                      onChange={(e) => setStudentClass(e.target.value)}
+                      className="w-full px-3.5 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-brand-500 outline-none text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      {CLASS_OPTIONS.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Board / Curriculum
+                    </label>
+                    <select
+                      value={curriculum}
+                      onChange={(e) => setCurriculum(e.target.value)}
+                      className="w-full px-3.5 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-brand-500 outline-none text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      <option value="CBSE">CBSE Board</option>
+                      <option value="ICSE">ICSE / CISCE</option>
+                      <option value="State Board">State Board</option>
+                      <option value="Other">Other Curriculum</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Preferred Language
+                    </label>
+                    <select
+                      value={preferredLanguage}
+                      onChange={(e) => setPreferredLanguage(e.target.value)}
+                      className="w-full px-3.5 py-3 bg-slate-50/50 border border-slate-200 rounded-2xl focus:bg-white focus:border-brand-500 outline-none text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      {LANGUAGE_OPTIONS.map((lang) => (
+                        <option key={lang.id} value={lang.id}>{lang.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Selected Subjects to Study */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Subjects you want to study
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SUBJECT_OPTIONS.map((sub) => {
+                      const isSelected = subjects.includes(sub.name);
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => toggleSubject(sub.name)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 border cursor-pointer ${
+                            isSelected
+                              ? 'bg-brand-500 text-white border-brand-500 shadow-xs'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{sub.icon}</span>
+                          <span>{sub.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Submit */}
             <button

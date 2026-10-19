@@ -11,6 +11,10 @@ const noteSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  subject: {
+    type: String,
+    default: 'General'
+  },
   class: {
     type: String,
     required: true
@@ -21,8 +25,23 @@ const noteSchema = new mongoose.Schema({
   },
   fileType: {
     type: String,
-    enum: ['pdf', 'image', 'assignment'],
+    enum: ['pdf', 'image', 'assignment', 'docx'],
     default: 'pdf'
+  },
+  rawContent: {
+    type: String,
+    default: ''
+  },
+  isIndexed: {
+    type: Boolean,
+    default: false
+  },
+  indexedAt: {
+    type: Date
+  },
+  chunkCount: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

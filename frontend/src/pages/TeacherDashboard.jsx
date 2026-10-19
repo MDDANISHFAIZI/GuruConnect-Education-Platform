@@ -7,7 +7,7 @@ import L from 'leaflet';
 import { useAuth } from '../context/AuthContext';
 import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
-import { User, ClipboardCheck, DollarSign, MapPin, Navigation, Save, Trash2, Calendar, AlertCircle, UserPlus, Check, X, Inbox, Eye, BookOpen, MessageSquare, Phone, Clock, Users, CheckCircle, PlusCircle, Activity, Download } from 'lucide-react';
+import { User, ClipboardCheck, DollarSign, MapPin, Navigation, Save, Trash2, Calendar, AlertCircle, UserPlus, Check, X, Inbox, Eye, BookOpen, MessageSquare, Phone, Clock, Users, CheckCircle, PlusCircle, Activity, Download, ExternalLink } from 'lucide-react';
 
 
 const teacherIcon = L.divIcon({
@@ -116,6 +116,10 @@ const TeacherDashboard = () => {
   const [noteTitle, setNoteTitle] = useState('');
   const [noteFileUrl, setNoteFileUrl] = useState('');
   const [noteFileType, setNoteFileType] = useState('pdf');
+  const [noteSubject, setNoteSubject] = useState('');
+  const [noteRawContent, setNoteRawContent] = useState('');
+  const [noteSelectedFileName, setNoteSelectedFileName] = useState('');
+  const [isReindexing, setIsReindexing] = useState(false);
 
   const [doubts, setDoubts] = useState([]);
   const [doubtReplyId, setDoubtReplyId] = useState('');
@@ -208,6 +212,36 @@ const TeacherDashboard = () => {
   };
 
   // Tuition Sub-systems submit & delete handlers
+  const handleNoteFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      triggerAlert('File size exceeds 15MB limit. Please choose a smaller PDF or DOCX file.', 'error');
+      return;
+    }
+
+    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+    if (!noteTitle) {
+      setNoteTitle(nameWithoutExt);
+    }
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext === 'docx') {
+      setNoteFileType('docx');
+    } else {
+      setNoteFileType('pdf');
+    }
+
+    setNoteSelectedFileName(`${file.name} (${(file.size / 1024).toFixed(0)} KB)`);
+
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      setNoteFileUrl(loadEvt.target.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleNoteSubmit = async (e) => {
     e.preventDefault();
     if (!noteTitle || !noteFileUrl) return;
@@ -216,14 +250,32 @@ const TeacherDashboard = () => {
         title: noteTitle,
         fileUrl: noteFileUrl,
         fileType: noteFileType,
-        class: selectedClass
+        class: selectedClass,
+        subject: noteSubject || 'General',
+        rawContent: noteRawContent
       });
-      triggerAlert('PDF / Study Note uploaded successfully!', 'success');
+      triggerAlert('PDF / Study Note uploaded & indexed for GuruAI!', 'success');
       setNoteTitle('');
       setNoteFileUrl('');
+      setNoteSubject('');
+      setNoteRawContent('');
+      setNoteSelectedFileName('');
       fetchUploadedNotes();
     } catch (err) {
       triggerAlert('Failed to upload study note.', 'error');
+    }
+  };
+
+  const handleReindexAllNotes = async () => {
+    setIsReindexing(true);
+    try {
+      const { data } = await axios.post('/api/ai/reindex-teacher-notes');
+      triggerAlert(data.message?.en || `Successfully indexed ${data.indexedCount} notes in GuruAI!`, 'success');
+      fetchUploadedNotes();
+    } catch (err) {
+      triggerAlert('Failed to reindex notes in GuruAI.', 'error');
+    } finally {
+      setIsReindexing(false);
     }
   };
 
@@ -2487,9 +2539,12 @@ const TeacherDashboard = () => {
                 <div className="space-y-6">
                   {/* Upload Note Form */}
                   <form onSubmit={handleNoteSubmit} className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
-                    <h4 className="font-outfit font-extrabold text-xs text-slate-700 uppercase tracking-wider">
-                      Upload New Study Note
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-outfit font-extrabold text-xs text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Upload New Study Note</span>
+                        <span className="bg-orange-100 text-orange-700 font-bold text-[9px] px-2 py-0.5 rounded-full">GuruAI Enabled</span>
+                      </h4>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Note Title *</label>
@@ -2497,20 +2552,19 @@ const TeacherDashboard = () => {
                           type="text"
                           value={noteTitle}
                           onChange={(e) => setNoteTitle(e.target.value)}
-                          placeholder="e.g. Trignometry Part 1 Formula Sheet"
+                          placeholder="e.g. Operating Systems Unit 3 CPU Scheduling"
                           required
                           className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Note File URL / Link *</label>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Subject (Optional)</label>
                         <input
-                          type="url"
-                          value={noteFileUrl}
-                          onChange={(e) => setNoteFileUrl(e.target.value)}
-                          placeholder="e.g. https://drive.google.com/...pdf"
-                          required
+                          type="text"
+                          value={noteSubject}
+                          onChange={(e) => setNoteSubject(e.target.value)}
+                          placeholder="e.g. Operating Systems / Physics"
                           className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
                         />
                       </div>
@@ -2523,22 +2577,106 @@ const TeacherDashboard = () => {
                           className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
                         >
                           <option value="pdf">PDF Document</option>
+                          <option value="docx">DOCX Document</option>
                           <option value="image">Image Note</option>
                           <option value="assignment">Assignment / HW sheet</option>
                         </select>
+                      </div>
+
+                      {/* Direct PDF / DOCX File Selection from Device */}
+                      <div className="space-y-1 sm:col-span-3 bg-white p-3.5 rounded-2xl border border-dashed border-slate-300">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                              📎 Select Document from Computer (PDF or DOCX)
+                            </label>
+                            <span className="text-[10px] text-slate-400">
+                              Upload educational notes directly from your device (Max 15MB)
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <label className="px-3.5 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center space-x-1.5 shadow-2xs">
+                              <span>📂 Browse Document</span>
+                              <input
+                                type="file"
+                                accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                onChange={handleNoteFileChange}
+                                className="hidden"
+                              />
+                            </label>
+                            {noteSelectedFileName && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setNoteSelectedFileName('');
+                                  setNoteFileUrl('');
+                                }}
+                                className="text-[10px] text-rose-500 hover:text-rose-700 font-bold px-2 py-1"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {noteSelectedFileName && (
+                          <div className="mt-2 inline-flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1 rounded-xl text-[11px] font-semibold">
+                            <span>✅ Selected:</span>
+                            <span className="font-bold">{noteSelectedFileName}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Or Note File URL / Cloud Link {noteSelectedFileName ? '(Auto-filled from chosen file)' : '*'}
+                        </label>
+                        <input
+                          type="text"
+                          value={noteFileUrl.startsWith('data:') ? `[Local File: ${noteSelectedFileName || 'Ready to upload'}]` : noteFileUrl}
+                          onChange={(e) => {
+                            setNoteFileUrl(e.target.value);
+                            setNoteSelectedFileName('');
+                          }}
+                          placeholder="e.g. https://drive.google.com/file/... or any shareable link"
+                          required={!noteFileUrl}
+                          className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Key Text / Summary (Optional)</label>
+                        <input
+                          type="text"
+                          value={noteRawContent}
+                          onChange={(e) => setNoteRawContent(e.target.value)}
+                          placeholder="Direct text to index immediately..."
+                          className="w-full p-3 bg-white border border-slate-200 rounded-2xl text-xs font-semibold outline-none focus:border-brand-500"
+                        />
                       </div>
                     </div>
                     <button
                       type="submit"
                       className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-extrabold text-xs rounded-2xl shadow active:scale-95 transition-all cursor-pointer"
                     >
-                      Publish Study Note
+                      Publish & Index Study Note
                     </button>
                   </form>
 
                   {/* List of uploaded notes */}
                   <div className="space-y-3">
-                    <h4 className="font-outfit font-extrabold text-sm text-slate-800">Uploaded Study Materials</h4>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <h4 className="font-outfit font-extrabold text-sm text-slate-800">Uploaded Study Materials</h4>
+                      <button
+                        type="button"
+                        onClick={handleReindexAllNotes}
+                        disabled={isReindexing || uploadedNotes.length === 0}
+                        className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 disabled:opacity-50 text-orange-700 border border-orange-200 rounded-xl text-[11px] font-bold transition-all flex items-center space-x-1.5 self-start sm:self-auto cursor-pointer"
+                        title="Re-index all notes into GuruAI Vector Store"
+                      >
+                        <span>{isReindexing ? '⚡ Indexing...' : '⚡ Re-index All in GuruAI'}</span>
+                      </button>
+                    </div>
+
                     {uploadedNotes.length === 0 ? (
                       <div className="p-8 text-center text-slate-400 font-medium bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-xs">
                         No study notes published yet. Fill in the form above to share documents with your class.
@@ -2547,11 +2685,22 @@ const TeacherDashboard = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {uploadedNotes.map(note => (
                           <div key={note._id} className="bg-white p-4 border border-slate-100 rounded-2xl flex items-center justify-between shadow-sm hover:shadow transition-all">
-                            <div className="space-y-1 truncate pr-3">
-                              <span className="text-[9px] uppercase tracking-widest font-extrabold text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
-                                {note.fileType}
-                              </span>
-                              <h5 className="font-outfit font-extrabold text-sm text-slate-800 truncate mt-1">{note.title}</h5>
+                            <div className="space-y-1.5 truncate pr-3">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="text-[9px] uppercase tracking-widest font-extrabold text-brand-600 bg-brand-50 px-2 py-0.5 rounded">
+                                  {note.fileType}
+                                </span>
+                                {note.isIndexed ? (
+                                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                    🟢 Indexed ({note.chunkCount || 1} chunks)
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                    🟡 GuruAI Auto-Index
+                                  </span>
+                                )}
+                              </div>
+                              <h5 className="font-outfit font-extrabold text-sm text-slate-800 truncate">{note.title}</h5>
                               <a href={note.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-cyan-600 hover:underline flex items-center space-x-1">
                                 <ExternalLink size={10} />
                                 <span className="truncate">{note.fileUrl}</span>

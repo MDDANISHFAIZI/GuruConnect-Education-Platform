@@ -10,6 +10,18 @@ const studentSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  subjects: {
+    type: [String],
+    default: []
+  },
+  curriculum: {
+    type: String,
+    default: 'CBSE' // CBSE, ICSE, State Board, etc.
+  },
+  preferredLanguage: {
+    type: String,
+    default: 'English' // English, Hindi
+  },
   school: {
     type: String,
     default: ''

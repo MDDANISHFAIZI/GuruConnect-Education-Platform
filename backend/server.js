@@ -19,6 +19,7 @@ import enrollmentRoutes from './routes/enrollments.js';
 import connectionRoutes from './routes/connections.js';
 import classroomRoutes from './routes/classroom.js';
 import notificationRoutes from './routes/notifications.js';
+import aiRoutes from './routes/ai.js';
 
 // Load variables
 dotenv.config();
@@ -47,6 +48,7 @@ app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/classroom', classroomRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Home route checker
 app.get('/', (req, res) => {

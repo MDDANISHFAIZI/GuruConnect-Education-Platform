@@ -59,7 +59,18 @@ export const getStudentProfile = async (req, res) => {
 // @access  Private (Student)
 export const updateStudentProfile = async (req, res) => {
   try {
-    const { class: studentClass, school, address, coordinates, profilePhoto, profileImage } = req.body;
+    const {
+      class: studentClass,
+      className,
+      subjects,
+      curriculum,
+      preferredLanguage,
+      school,
+      address,
+      coordinates,
+      profilePhoto,
+      profileImage
+    } = req.body;
     
     let student = await Student.findOne({ user: req.user._id });
     if (!student) {
@@ -67,6 +78,24 @@ export const updateStudentProfile = async (req, res) => {
     }
 
     if (studentClass !== undefined) student.class = studentClass;
+    else if (className !== undefined) student.class = className;
+
+    if (subjects !== undefined) {
+      if (Array.isArray(subjects)) {
+        student.subjects = subjects.map(s => String(s).trim()).filter(Boolean);
+      } else if (typeof subjects === 'string') {
+        student.subjects = subjects.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
+    if (curriculum !== undefined && curriculum.trim()) {
+      student.curriculum = curriculum.trim();
+    }
+
+    if (preferredLanguage !== undefined && preferredLanguage.trim()) {
+      student.preferredLanguage = preferredLanguage.trim();
+    }
+
     if (school !== undefined) student.school = school;
     if (address !== undefined) student.address = address;
 

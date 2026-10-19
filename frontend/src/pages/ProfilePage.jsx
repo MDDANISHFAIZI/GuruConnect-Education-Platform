@@ -11,6 +11,7 @@ import {
   CheckCircle, Star, Heart, Calendar, AlertCircle
 } from 'lucide-react';
 import StarRating from '../components/StarRating';
+import { CLASS_OPTIONS, SUBJECT_OPTIONS, BOARD_OPTIONS, LANGUAGE_OPTIONS } from '../utils/studentCurriculum';
 
 const ProfilePage = () => {
   const { t, i18n } = useTranslation();
@@ -64,6 +65,19 @@ const ProfilePage = () => {
   // Edit Form Fields (Student only)
   const [studentClass, setStudentClass] = useState('');
   const [school, setSchool] = useState('');
+  const [studentSubjects, setStudentSubjects] = useState(['Maths', 'Science']);
+  const [studentCurriculum, setStudentCurriculum] = useState('CBSE');
+  const [studentLanguage, setStudentLanguage] = useState('English');
+
+  const toggleStudentSubject = (subName) => {
+    if (studentSubjects.includes(subName)) {
+      if (studentSubjects.length > 1) {
+        setStudentSubjects(prev => prev.filter(s => s !== subName));
+      }
+    } else {
+      setStudentSubjects(prev => [...prev, subName]);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -164,6 +178,9 @@ const ProfilePage = () => {
         setStudentClass(data.class || '');
         setSchool(data.school || '');
         setAddress(data.address || '');
+        setStudentSubjects(data.subjects || ['Maths', 'Science']);
+        setStudentCurriculum(data.curriculum || 'CBSE');
+        setStudentLanguage(data.preferredLanguage || 'English');
 
         // 2. Bookmarked/Favorite Tutors
         try {
@@ -253,7 +270,10 @@ const ProfilePage = () => {
           profilePhoto,
           class: studentClass,
           school,
-          address
+          address,
+          subjects: studentSubjects,
+          curriculum: studentCurriculum,
+          preferredLanguage: studentLanguage
         });
       } else {
         triggerAlert('Editing unavailable for administrative clearance.', 'error');
@@ -634,12 +654,12 @@ const ProfilePage = () => {
                 <div className="space-y-6">
                   
                   {/* Grid details: School & class stats */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl flex items-start space-x-3 text-left">
                       <GraduationCap className="text-brand-500 shrink-0" size={22} />
                       <div>
-                        <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Class / Grade</h4>
-                        <p className="text-sm font-bold text-slate-800 mt-1">{profileData?.class || 'N/A'}</p>
+                        <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Class & Board</h4>
+                        <p className="text-sm font-bold text-slate-800 mt-1">{profileData?.class || 'Class 7'} ({profileData?.curriculum || 'CBSE'})</p>
                       </div>
                     </div>
                     
@@ -651,10 +671,30 @@ const ProfilePage = () => {
                       </div>
                     </div>
 
+                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl flex items-start space-x-3 text-left">
+                      <Globe className="text-emerald-500 shrink-0" size={22} />
+                      <div>
+                        <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Study Language</h4>
+                        <p className="text-xs font-bold text-slate-800 mt-1 leading-snug">{profileData?.preferredLanguage || 'English'}</p>
+                      </div>
+                    </div>
+
                     <div className="bg-gradient-to-tr from-[#1d4ed8] to-[#0891b2] text-white p-5 rounded-3xl flex items-start space-x-3 text-left relative overflow-hidden">
                       <div className="absolute right-0 bottom-0 opacity-15"><CheckCircle size={70} /></div>
                       <span className="text-[9px] font-black uppercase text-cyan-100 tracking-wider">Attendance Status</span>
                       <p className="font-outfit font-black text-sm mt-3.5">94% Compliant 🌟</p>
+                    </div>
+                  </div>
+
+                  {/* Selected Learning Subjects */}
+                  <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl text-left space-y-2">
+                    <h4 className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Your Subjects</h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(profileData?.subjects && profileData.subjects.length > 0 ? profileData.subjects : ['Maths', 'Science']).map((sub, sIdx) => (
+                        <span key={sIdx} className="bg-white border border-slate-200 text-slate-800 px-3 py-1 rounded-xl text-xs font-bold shadow-2xs">
+                          {sub}
+                        </span>
+                      ))}
                     </div>
                   </div>
 
@@ -871,21 +911,49 @@ const ProfilePage = () => {
 
               {/* Student specific fields */}
               {!isTeacher && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Class / Standard *</label>
-                    <select
-                      value={studentClass}
-                      onChange={(e) => setStudentClass(e.target.value)}
-                      required
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
-                    >
-                      <option value="">Select Class</option>
-                      {[...Array(12)].map((_, i) => (
-                        <option key={i + 1} value={`Class ${i + 1}`}>Class {i + 1}</option>
-                      ))}
-                    </select>
+                <div className="space-y-4 border-t border-slate-100 pt-4 text-left">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Class / Grade *</label>
+                      <select
+                        value={studentClass}
+                        onChange={(e) => setStudentClass(e.target.value)}
+                        required
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
+                      >
+                        {CLASS_OPTIONS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Board / Curriculum</label>
+                      <select
+                        value={studentCurriculum}
+                        onChange={(e) => setStudentCurriculum(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
+                      >
+                        {BOARD_OPTIONS.map((b) => (
+                          <option key={b.id} value={b.id}>{b.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Preferred Language</label>
+                      <select
+                        value={studentLanguage}
+                        onChange={(e) => setStudentLanguage(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
+                      >
+                        {LANGUAGE_OPTIONS.map((l) => (
+                          <option key={l.id} value={l.id}>{l.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">School Name *</label>
                     <input
@@ -896,6 +964,33 @@ const ProfilePage = () => {
                       placeholder="e.g. Govt High School"
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold focus:bg-white outline-none focus:border-brand-500"
                     />
+                  </div>
+
+                  {/* Subjects you want to study */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Subjects You Study (Click to add/remove)
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUBJECT_OPTIONS.map((sub) => {
+                        const isSelected = studentSubjects.includes(sub.name);
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => toggleStudentSubject(sub.name)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 border cursor-pointer ${
+                              isSelected
+                                ? 'bg-brand-500 text-white border-brand-500 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span>{sub.icon}</span>
+                            <span>{sub.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}

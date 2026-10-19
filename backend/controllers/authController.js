@@ -71,10 +71,19 @@ export const registerUser = async (req, res) => {
     });
 
     if (user) {
-      // If student, create empty student profile
+      // If student, create student profile with any initial preferences
       if (role === 'student') {
+        const studentClass = req.body.class || req.body.studentClass || '';
+        const subjects = Array.isArray(req.body.subjects) ? req.body.subjects : [];
+        const curriculum = req.body.curriculum || 'CBSE';
+        const preferredLanguage = req.body.preferredLanguage || 'English';
+
         await Student.create({
           user: user._id,
+          class: studentClass,
+          subjects,
+          curriculum,
+          preferredLanguage,
           profilePhoto: processedPhoto,
           profileImage: processedPhoto,
           profileImagePublicId: uploadResult.publicId

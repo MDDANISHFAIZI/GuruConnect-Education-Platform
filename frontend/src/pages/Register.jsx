@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Phone, AlertCircle, Sparkles, Eye, EyeOff, GraduationCap } from 'lucide-react';
 import { CLASS_OPTIONS, SUBJECT_OPTIONS, LANGUAGE_OPTIONS } from '../utils/studentCurriculum';
+import TeacherLocationPicker from '../components/TeacherLocationPicker';
 
 const Register = ({ role }) => {
   const { t, i18n } = useTranslation();
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const isTeacher = role === 'teacher';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -19,6 +22,7 @@ const Register = ({ role }) => {
   const [curriculum, setCurriculum] = useState('CBSE');
   const [subjects, setSubjects] = useState(['Maths', 'Science']);
   const [preferredLanguage, setPreferredLanguage] = useState('English');
+  const [teacherLocationData, setTeacherLocationData] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -64,7 +68,28 @@ const Register = ({ role }) => {
     }
 
     setLoading(true);
-    const extraData = !isTeacher ? { class: studentClass, curriculum, subjects, preferredLanguage } : {};
+    let extraData = {};
+    if (!isTeacher) {
+      extraData = { class: studentClass, curriculum, subjects, preferredLanguage };
+    } else if (teacherLocationData?.coordinates) {
+      extraData = {
+        coordinates: teacherLocationData.coordinates,
+        longitude: teacherLocationData.longitude,
+        latitude: teacherLocationData.latitude,
+        location: {
+          type: 'Point',
+          coordinates: teacherLocationData.coordinates
+        },
+        address: teacherLocationData.address,
+        teachingArea: teacherLocationData.teachingArea,
+        city: teacherLocationData.city,
+        state: teacherLocationData.state,
+        district: teacherLocationData.district,
+        pincode: teacherLocationData.pincode,
+        formattedAddress: teacherLocationData.formattedAddress
+      };
+    }
+
     const result = await register(name, email, password, role, phone, profilePhoto, extraData);
     setLoading(false);
 
@@ -78,16 +103,14 @@ const Register = ({ role }) => {
     }
   };
 
-  const isTeacher = role === 'teacher';
-
   return (
     <div className="min-h-screen py-16 flex items-center justify-center relative bg-[#f8fafc]">
       {/* Background radial glows */}
       <div className="absolute top-10 left-10 w-80 h-80 bg-brand-100/40 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-100/30 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="w-full max-w-lg px-4 relative z-10">
-        <div className="glass-card p-8 sm:p-10 rounded-3xl shadow-premium border border-slate-100 bg-white">
+      <div className={`w-full px-4 relative z-10 transition-all ${isTeacher ? 'max-w-2xl' : 'max-w-lg'}`}>
+        <div className="glass-card p-6 sm:p-10 rounded-3xl shadow-premium border border-slate-100 bg-white">
           
           {/* Custom role branding tag */}
           <div className="flex justify-center mb-4">
@@ -331,6 +354,17 @@ const Register = ({ role }) => {
                     })}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Teacher Teaching Location Step with Leaflet Map */}
+            {isTeacher && (
+              <div className="pt-2 border-t border-slate-100">
+                <TeacherLocationPicker
+                  onLocationChange={(locData) => setTeacherLocationData(locData)}
+                  title="Teaching Location on Map (Required)"
+                  subtitle="GuruConnect detects your location for nearby 2km student discovery. Drag the marker if your teaching center is different."
+                />
               </div>
             )}
 

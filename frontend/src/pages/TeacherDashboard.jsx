@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
 import { downloadReceiptPdf } from '../utils/receiptPdf';
 import { User, ClipboardCheck, DollarSign, MapPin, Navigation, Save, Trash2, Calendar, AlertCircle, UserPlus, Check, X, Inbox, Eye, BookOpen, MessageSquare, Phone, Clock, Users, CheckCircle, PlusCircle, Activity, Download, ExternalLink } from 'lucide-react';
+import TeacherLocationPicker from '../components/TeacherLocationPicker';
 
 
 const teacherIcon = L.divIcon({
@@ -908,6 +909,33 @@ const TeacherDashboard = () => {
         </div>
       </div>
 
+      {/* Warning banner if teacher location is placeholder or not set */}
+      {(!coordinates || (coordinates[0] === 77.209 && coordinates[1] === 28.6139) || address === 'Update Address') && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-orange-200 p-5 rounded-3xl mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in shadow-xs">
+          <div className="flex items-start space-x-3">
+            <div className="p-2.5 bg-orange-100 text-orange-600 rounded-2xl shrink-0 mt-0.5">
+              <MapPin size={22} className="animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-outfit font-black text-slate-900 text-base">
+                {i18n.language === 'hi' ? 'शिक्षण स्थान सेट करें!' : 'Set Your Hyperlocal Teaching Location!'}
+              </h4>
+              <p className="text-xs text-slate-600 font-semibold mt-0.5 leading-relaxed">
+                {i18n.language === 'hi'
+                  ? 'छात्र आपको 2 किमी के दायरे में खोज सकें, इसके लिए कृपया अपने शिक्षण केंद्र का सही स्थान नक्शे पर सेट करें।'
+                  : 'Your profile is currently using a default placeholder location. Update your actual teaching location on the map so nearby students can discover your tuitions.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('location')}
+            className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-[#ea580c] hover:from-orange-600 hover:to-orange-700 text-white font-outfit font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
+          >
+            {i18n.language === 'hi' ? 'स्थान अपडेट करें' : 'Update Location on Map'}
+          </button>
+        </div>
+      )}
+
       {/* Grid: Sidebar Tabs Navigation & Tab Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
@@ -972,6 +1000,18 @@ const TeacherDashboard = () => {
           >
             <BookOpen size={18} />
             <span>{i18n.language === 'hi' ? 'ट्यूशन क्लासरूम हब' : 'Classroom Hub'}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('location')}
+            className={`w-full text-left p-4 rounded-2xl font-bold text-sm transition-all flex items-center space-x-3 cursor-pointer ${
+              activeTab === 'location'
+                ? 'bg-brand-500 text-white shadow'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
+            }`}
+          >
+            <MapPin size={18} />
+            <span>{i18n.language === 'hi' ? 'शिक्षण स्थान (नक्शा)' : 'Teaching Location'}</span>
           </button>
 
           {/* Educator Connection Code Card */}
@@ -3051,6 +3091,73 @@ const TeacherDashboard = () => {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 7: Teaching Location Management */}
+          {activeTab === 'location' && (
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="font-outfit font-black text-2xl text-slate-900 flex items-center gap-2">
+                    <MapPin className="text-[#f97316]" size={24} />
+                    <span>{i18n.language === 'hi' ? 'शिक्षण स्थान और मानचित्र' : 'Teaching Location on Map'}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold mt-1">
+                    {i18n.language === 'hi'
+                      ? 'आपका शिक्षण स्थान निर्धारित करता है कि 2 किमी के दायरे में कौन से छात्र आपको खोज सकते हैं।'
+                      : 'Your saved teaching location determines which students discover your profile within a 2km hyperlocal radius.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await axios.put('/api/teachers/location', {
+                        coordinates,
+                        longitude: coordinates[0],
+                        latitude: coordinates[1],
+                        address,
+                        teachingArea,
+                        city,
+                        state
+                      });
+                      triggerAlert(
+                        i18n.language === 'hi' ? 'आपका शिक्षण स्थान सफलतापूर्वक सहेजा गया है।' : 'Your teaching location has been saved successfully.',
+                        'success'
+                      );
+                      fetchTeacherProfile();
+                    } catch (err) {
+                      triggerAlert('Failed to save teaching location.', 'error');
+                    }
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-orange-500 to-[#ea580c] hover:from-orange-600 hover:to-orange-700 text-white font-outfit font-extrabold text-xs rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center space-x-2 cursor-pointer"
+                >
+                  <Save size={15} />
+                  <span>{i18n.language === 'hi' ? 'स्थान सहेजें' : 'Save Location'}</span>
+                </button>
+              </div>
+
+              <TeacherLocationPicker
+                initialCoordinates={coordinates}
+                initialAddress={address}
+                onLocationChange={(loc) => {
+                  if (loc.coordinates) {
+                    setCoordinates(loc.coordinates);
+                  }
+                  if (loc.formattedAddress) {
+                    setAddress(loc.formattedAddress);
+                  }
+                  if (loc.teachingArea) {
+                    setTeachingArea(loc.teachingArea);
+                  }
+                  if (loc.city) setCity(loc.city);
+                  if (loc.state) setState(loc.state);
+                }}
+                title={i18n.language === 'hi' ? 'अपने शिक्षण केंद्र का स्थान चुनें' : 'Pinpoint Your Actual Teaching Center'}
+                subtitle={i18n.language === 'hi' ? 'नक्शे पर मार्कर को खींचकर अपने ट्यूशन केंद्र पर रखें' : 'Drag the marker or click on the map to set your tuition center'}
+              />
             </div>
           )}
 

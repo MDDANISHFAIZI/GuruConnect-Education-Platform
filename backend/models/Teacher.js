@@ -56,17 +56,15 @@ const teacherSchema = new mongoose.Schema({
     default: ''
   },
   address: {
-    type: String,
-    required: true
+    type: mongoose.Schema.Types.Mixed,
+    default: 'Update Address'
   },
   villageOrArea: {
     type: String,
-    required: true,
     default: 'Detected Area'
   },
   teachingArea: {
     type: String,
-    required: true,
     default: 'Detected Area'
   },
   locality: {
@@ -75,12 +73,10 @@ const teacherSchema = new mongoose.Schema({
   },
   city: {
     type: String,
-    required: true,
     default: 'Dhanbad'
   },
   state: {
     type: String,
-    required: true,
     default: 'Jharkhand'
   },
   demoAvailable: {
@@ -94,7 +90,7 @@ const teacherSchema = new mongoose.Schema({
       default: 'Point'
     },
     coordinates: {
-      type: [Number] // [longitude, latitude] - optional
+      type: [Number] // [longitude, latitude] in strict GeoJSON order
     }
   },
   rating: {
@@ -125,7 +121,7 @@ const teacherSchema = new mongoose.Schema({
 });
 
 // Create 2dsphere index on the location field for geolocation queries
-teacherSchema.index({ location: '2dsphere' });
+teacherSchema.index({ location: '2dsphere' }, { sparse: true });
 
 const Teacher = mongoose.model('Teacher', teacherSchema);
 export default Teacher;

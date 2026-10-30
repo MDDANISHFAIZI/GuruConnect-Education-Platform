@@ -61,6 +61,7 @@ const ProfilePage = () => {
   const [locality, setLocality] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [coordinates, setCoordinates] = useState(null);
 
   // Edit Form Fields (Student only)
   const [studentClass, setStudentClass] = useState('');
@@ -114,11 +115,14 @@ const ProfilePage = () => {
         setExperience(data.experience || 0);
         setMode(data.mode || 'offline');
         setDemoAvailable(data.demoAvailable || false);
-        setAddress(data.address || '');
-        setTeachingArea(data.teachingArea || data.villageOrArea || '');
+        setAddress(typeof data.address === 'object' ? data.address?.formattedAddress || data.address?.area || '' : data.address || '');
+        setTeachingArea(data.teachingArea || data.villageOrArea || (typeof data.address === 'object' ? data.address?.area : '') || '');
         setLocality(data.locality || '');
         setCity(data.city || 'Dhanbad');
         setState(data.state || 'Jharkhand');
+        if (data.location?.coordinates) {
+          setCoordinates(data.location.coordinates);
+        }
 
         // 2. Reviews
         try {
@@ -261,7 +265,8 @@ const ProfilePage = () => {
           teachingArea,
           locality,
           city,
-          state
+          state,
+          coordinates
         });
       } else if (user.role === 'student') {
         await axios.put('/api/students/profile', {

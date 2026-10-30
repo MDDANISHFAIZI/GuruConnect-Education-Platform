@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { MapPin, Search, SlidersHorizontal, BookOpen, Clock, Phone, Navigation, AlertCircle, X, Sparkles, Send, Map, Loader2, Compass } from 'lucide-react';
+import { MapPin, Search, SlidersHorizontal, BookOpen, Clock, Phone, Navigation, AlertCircle, X, Sparkles, Send, Loader2, Compass } from 'lucide-react';
 import StarRating from '../components/StarRating';
 import { useAuth } from '../context/AuthContext';
 import { getProfilePhotoUrl, handleProfileImageError } from '../utils/image';
@@ -76,7 +76,7 @@ const NearbyDiscovery = () => {
   const [classQuery, setClassQuery] = useState(user?.role === 'student' ? user.class || '' : '');
   const [mode, setMode] = useState('');
   const [feeMax, setFeeMax] = useState(2000);
-  const [maxDistance, setMaxDistance] = useState(2000); // meters
+  const [radiusKm, setRadiusKm] = useState(2); // Hyperlocal default radius: 2 km
 
   // Data states
   const [teachers, setTeachers] = useState([]);
@@ -109,12 +109,12 @@ const NearbyDiscovery = () => {
     }
   }, [routeLocation]);
 
-  // Fetch whenever coordinates, locationQuery or criteria change
+  // Fetch whenever coordinates, locationQuery, radiusKm or criteria change
   useEffect(() => {
     if (coords || locationQuery) {
       fetchTeachers();
     }
-  }, [coords, locationQuery, maxDistance, mode]);
+  }, [coords, locationQuery, radiusKm, mode]);
 
   // Reverse Geocoding via Backend Proxy
   const reverseGeocode = async (lng, lat) => {
@@ -161,14 +161,13 @@ const NearbyDiscovery = () => {
     setAddressName('Acquiring fresh coordinates...');
 
     if (!navigator.geolocation) {
-      setGeoError('Geolocation is not supported by your browser.');
-      const fallbackLng = 77.2090;
-      const fallbackLat = 28.6139;
+      setGeoError('Geolocation is not supported by your browser. Please search or click on the map.');
+      const fallbackLng = 86.4304;
+      const fallbackLat = 23.7957;
       setCoords([fallbackLng, fallbackLat]);
       setLatitude(fallbackLat);
       setLongitude(fallbackLng);
-      setAddressName('Delhi (Fallback)');
-      setLoadingLocation(false);
+      reverseGeocode(fallbackLng, fallbackLat);
       return;
     }
 
@@ -182,16 +181,20 @@ const NearbyDiscovery = () => {
       },
       (error) => {
         console.warn('Geolocation access failed or timed out:', error);
-        setGeoError('Please allow location access or select location manually.');
-        const fallbackLng = 77.2090;
-        const fallbackLat = 28.6139;
-        setCoords([fallbackLng, fallbackLat]);
-        setLatitude(fallbackLat);
-        setLongitude(fallbackLng);
-        setAddressName('Delhi (Fallback)');
-        setLoadingLocation(false);
+        setGeoError('Please allow location access or select your location manually on the map.');
+        // Center on default hub without forcing fake location
+        if (!coords) {
+          const fallbackLng = 86.4304;
+          const fallbackLat = 23.7957;
+          setCoords([fallbackLng, fallbackLat]);
+          setLatitude(fallbackLat);
+          setLongitude(fallbackLng);
+          reverseGeocode(fallbackLng, fallbackLat);
+        } else {
+          setLoadingLocation(false);
+        }
       },
-      // IMPORTANT: Geolocation system configured for maximum real-time accuracy and fresh queries
+      // Geolocation system configured for maximum real-time accuracy
       {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -247,12 +250,14 @@ const NearbyDiscovery = () => {
     setSearchSuggestions([]);
   };
 
-  const fetchTeachers = async () => {
+  const fetchTeachers = async (overrideRadius = null) => {
     if (!coords && !locationQuery) return;
     setLoadingData(true);
     try {
-      const payload = {
-        maxDistance,
+      const activeRadius = overrideRadius !== null ? overrideRadius : radiusKm;
+      const params = {
+        radius: activeRadius,
+        maxDistance: activeRadius * 1000,
         subject,
         classQuery,
         mode,
@@ -260,10 +265,10 @@ const NearbyDiscovery = () => {
         locationQuery
       };
       if (coords) {
-        payload.longitude = coords[0];
-        payload.latitude = coords[1];
+        params.longitude = coords[0];
+        params.latitude = coords[1];
       }
-      const response = await axios.post('/api/teachers/nearby', payload);
+      const response = await axios.get('/api/teachers/nearby', { params });
       setTeachers(response.data.teachers || []);
       setWaitlistStatus(false);
     } catch (err) {
@@ -455,12 +460,37 @@ const NearbyDiscovery = () => {
             </button>
 
             <button
-              onClick={fetchTeachers}
+              onClick={() => fetchTeachers()}
               className="px-6 py-3 bg-brand-500 hover:bg-brand-600 text-white font-black text-sm rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
             >
               Search
             </button>
           </div>
+        </div>
+
+        {/* Hyperlocal Radius Selection Options: 2 km, 5 km, 10 km, 20 km */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 mr-1">
+            <Compass size={14} className="text-[#f97316]" />
+            <span>Search Radius:</span>
+          </span>
+          {[2, 5, 10, 20].map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRadiusKm(r)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-black transition-all cursor-pointer active:scale-95 ${
+                radiusKm === r
+                  ? 'bg-gradient-to-r from-orange-500 to-[#ea580c] text-white shadow-md'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/60'
+              }`}
+            >
+              {r} km {r === 2 && '• Default'}
+            </button>
+          ))}
+          <span className="text-[11px] text-slate-400 font-semibold ml-2">
+            Showing tutors within {radiusKm} km from student pin
+          </span>
         </div>
 
         {/* Filters details */}
@@ -512,18 +542,19 @@ const NearbyDiscovery = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase text-slate-400 flex justify-between">
-                <span>{t('discovery.filterDistance')}</span>
-                <span className="text-brand-600 font-extrabold">{(maxDistance / 1000).toFixed(1)} km</span>
+                <span>Radius (km)</span>
+                <span className="text-[#f97316] font-extrabold">{radiusKm} km</span>
               </label>
-              <input
-                type="range"
-                min="500"
-                max="5000"
-                step="500"
-                value={maxDistance}
-                onChange={(e) => setMaxDistance(Number(e.target.value))}
-                className="w-full accent-brand-500"
-              />
+              <select
+                value={radiusKm}
+                onChange={(e) => setRadiusKm(Number(e.target.value))}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium outline-none"
+              >
+                <option value={2}>2 km (Default Hyperlocal)</option>
+                <option value={5}>5 km (Neighborhood)</option>
+                <option value={10}>10 km (Town / City Area)</option>
+                <option value={20}>20 km (Regional)</option>
+              </select>
             </div>
           </div>
         )}
@@ -559,11 +590,23 @@ const NearbyDiscovery = () => {
                   <div className="p-3 text-center">
                     <p className="font-bold text-brand-600 text-sm">Your Location 🏠</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">{addressName}</p>
+                    <p className="text-[9px] text-slate-400 font-mono">[{coords[0].toFixed(4)}, {coords[1].toFixed(4)}]</p>
                   </div>
                 </Popup>
               </Marker>
 
-              {teachers.map((teacher) => (
+              {/* Deduplicated Teacher Markers based on actual MongoDB coordinates */}
+              {teachers
+                .filter(
+                  (t, idx, arr) =>
+                    t.location?.coordinates &&
+                    Array.isArray(t.location.coordinates) &&
+                    t.location.coordinates.length === 2 &&
+                    !isNaN(t.location.coordinates[0]) &&
+                    !isNaN(t.location.coordinates[1]) &&
+                    arr.findIndex((o) => o._id === t._id) === idx
+                )
+                .map((teacher) => (
                 <Marker
                   key={teacher._id}
                   position={[teacher.location.coordinates[1], teacher.location.coordinates[0]]}
@@ -573,29 +616,51 @@ const NearbyDiscovery = () => {
                   }}
                 >
                   <Popup>
-                    <div className="p-3 font-sans space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-outfit font-black text-[#1e293b] text-base leading-tight">
-                          {teacher.user.name}
-                        </h4>
-                        {teacher.isVerified && <span className="text-[9px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-md">🛡️</span>}
-                      </div>
-                      
-                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{teacher.subjects.slice(0, 2).join(', ')}</p>
-                      
-                      <div className="flex items-center space-x-1.5">
-                        <StarRating rating={teacher.rating} size={12} />
-                        <span className="text-[10px] text-slate-500 font-bold">({teacher.reviewCount})</span>
+                    <div className="p-3 font-sans space-y-2 max-w-[240px]">
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                          {getProfilePhotoUrl(teacher.user?.profilePhoto || teacher.user?.profileImage || teacher.profilePhoto) ? (
+                            <img
+                              src={getProfilePhotoUrl(teacher.user?.profilePhoto || teacher.user?.profileImage || teacher.profilePhoto)}
+                              alt={teacher.user?.name}
+                              className="w-full h-full object-cover"
+                              onError={handleProfileImageError}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold text-sm bg-slate-200">
+                              {teacher.user?.name?.charAt(0) || 'T'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-outfit font-black text-slate-900 text-sm leading-tight truncate">
+                            {teacher.user?.name}
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-bold block truncate">
+                            {teacher.experience > 0 ? `${teacher.experience} yrs teaching exp` : 'Verified Educator'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px] font-bold">
-                        <span className="text-brand-600">₹{teacher.fees}/mo</span>
-                        <span className="text-emerald-600">{(teacher.distance / 1000).toFixed(1)} km</span>
+                      <div className="space-y-1 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <p className="font-bold text-brand-600 truncate">
+                          📚 {teacher.subjects?.slice(0, 3).join(', ')}
+                        </p>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">
+                          📍 {teacher.formattedAddress || teacher.teachingArea || teacher.villageOrArea || teacher.city}
+                        </p>
                       </div>
-                      
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs font-black">
+                        <span className="text-slate-900">₹{teacher.fees}/mo</span>
+                        <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px]">
+                          {teacher.formattedDistance || `${(teacher.distance / 1000).toFixed(1)} km away`}
+                        </span>
+                      </div>
+
                       <Link
                         to={`/teacher-profile/${teacher._id}`}
-                        className="block text-center w-full bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[11px] py-1.5 rounded-lg mt-2 shadow transition-all"
+                        className="block text-center w-full bg-gradient-to-r from-orange-500 to-[#ea580c] hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-xs py-2 rounded-xl mt-2 shadow transition-all"
                       >
                         View Full Profile
                       </Link>
@@ -631,18 +696,46 @@ const NearbyDiscovery = () => {
               
               <div className="inline-flex items-center space-x-2 bg-red-50 border border-red-100 px-4 py-1.5 rounded-full text-xs font-bold text-red-600 w-fit">
                 <Sparkles size={13} className="text-[#f97316]" />
-                <span>Hotspot Region demand logged</span>
+                <span>Hyperlocal radius: {radiusKm} km</span>
               </div>
 
               {isStudentRole ? (
                 /* STUDENT / GUEST EMPTY STATE */
-                <div className="space-y-5 relative z-10">
+                <div className="space-y-4 relative z-10">
                   <h2 className="font-outfit font-black text-2xl md:text-3xl text-slate-900 leading-tight">
-                    {i18n.language === 'hi' ? 'हम जल्द ही आपके क्षेत्र में उपलब्ध होंगे!' : 'No teachers available nearby yet'}
+                    No teachers found within {radiusKm} km.
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 font-semibold leading-relaxed">
-                    GuruConnect is currently expanding village-by-village. Tap "Notify Me" to register your request, click adjacent villages on the map to search elsewhere, or click [Change] above to manually select a different city or town.
+                    Try expanding your search radius to discover tutors slightly further away, click adjacent villages on the map, or tap "Notify Me".
                   </p>
+
+                  {/* Quick Expand Radius Buttons */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {radiusKm < 5 && (
+                      <button
+                        onClick={() => setRadiusKm(5)}
+                        className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Expand to 5 km ➔
+                      </button>
+                    )}
+                    {radiusKm < 10 && (
+                      <button
+                        onClick={() => setRadiusKm(10)}
+                        className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Expand to 10 km ➔
+                      </button>
+                    )}
+                    {radiusKm < 20 && (
+                      <button
+                        onClick={() => setRadiusKm(20)}
+                        className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Expand to 20 km ➔
+                      </button>
+                    )}
+                  </div>
                   
                   {waitlistStatus ? (
                     <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 p-4 rounded-2xl text-xs font-extrabold">
@@ -673,7 +766,7 @@ const NearbyDiscovery = () => {
                     {i18n.language === 'hi' ? 'इस क्षेत्र में पहले शिक्षक बनें!' : 'Become First Teacher In This Area!'}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 font-semibold leading-relaxed">
-                    Be the pioneer educator in your village! Complete your MERN teacher profile to mark your center on the OpenStreetMap and get searched by nearby families.
+                    Be the pioneer educator in your village! Complete your teacher profile to mark your center on the OpenStreetMap and get searched by nearby families.
                   </p>
                   
                   <Link
@@ -697,83 +790,91 @@ const NearbyDiscovery = () => {
           ) : (
             
             /* Nearby Teacher Cards List */
-            teachers.map((teacher) => (
-              <div
-                key={teacher._id}
-                onMouseEnter={() => setHoveredTeacherId(teacher._id)}
-                onMouseLeave={() => setHoveredTeacherId(null)}
-                className={`glass-card p-5 rounded-3xl border transition-all duration-300 flex items-start gap-4 ${
-                  hoveredTeacherId === teacher._id
-                    ? 'border-[#f97316] shadow-premium bg-gradient-to-br from-white to-orange-50/20 scale-[1.01]'
-                    : 'border-slate-100 bg-white hover:border-slate-200'
-                }`}
-              >
-                <div className="h-16 w-16 rounded-2xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                  {getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage) ? (
-                    <img src={getProfilePhotoUrl(teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage)} alt={teacher.user.name} className="h-full w-full object-cover" onError={handleProfileImageError} />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
-                      <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
+            teachers.map((teacher) => {
+              const teacherName = teacher.user?.name || teacher.name || 'Verified Educator';
+              const photo = teacher.profilePhoto || teacher.profileImage || teacher.user?.profilePhoto || teacher.user?.profileImage;
+              const subjectsList = Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : (teacher.subjects || 'All Subjects');
+              const classesList = Array.isArray(teacher.classes) ? teacher.classes.join(', ') : (teacher.classes || 'All Classes');
+              const timingsText = teacher.timings || 'Flexible Hours';
 
-                <div className="flex-1 space-y-2 min-w-0">
-                  <div className="flex items-start justify-between gap-1">
-                    <div>
-                      <h3 className="font-outfit font-black text-slate-900 text-lg leading-tight truncate">
-                        {teacher.user.name}
-                      </h3>
-                      {teacher.villageOrArea && (
-                        <p className="text-[10px] font-black text-brand-600 bg-brand-50 border border-brand-100/60 px-2 py-0.5 rounded-md w-fit mt-0.5 flex items-center gap-0.5">
-                          <span>📍</span>
-                          <span>{teacher.villageOrArea}</span>
-                        </p>
-                      )}
-                      <div className="flex items-center space-x-1.5 mt-0.5">
-                        <StarRating rating={teacher.rating} size={12} />
-                        <span className="text-[10px] text-slate-500 font-extrabold">({teacher.reviewCount})</span>
-                        {teacher.demoAvailable && (
-                          <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-wider">
-                            {t('discovery.demoAvailable')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {teacher.distance > 0 && (
-                      <div className="text-right flex-shrink-0">
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg">
-                          {(teacher.distance / 1000).toFixed(1)} km
-                        </span>
+              return (
+                <div
+                  key={teacher._id}
+                  onMouseEnter={() => setHoveredTeacherId(teacher._id)}
+                  onMouseLeave={() => setHoveredTeacherId(null)}
+                  className={`glass-card p-5 rounded-3xl border transition-all duration-300 flex items-start gap-4 ${
+                    hoveredTeacherId === teacher._id
+                      ? 'border-[#f97316] shadow-premium bg-gradient-to-br from-white to-orange-50/20 scale-[1.01]'
+                      : 'border-slate-100 bg-white hover:border-slate-200'
+                  }`}
+                >
+                  <div className="h-16 w-16 rounded-2xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    {getProfilePhotoUrl(photo) ? (
+                      <img src={getProfilePhotoUrl(photo)} alt={teacherName} className="h-full w-full object-cover" onError={handleProfileImageError} />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-slate-100 text-slate-400">
+                        <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
                       </div>
                     )}
                   </div>
 
-                  <div className="text-xs text-slate-500 space-y-0.5 font-semibold">
-                    <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.subjectsTaught')}</span>{teacher.subjects.join(', ')}</p>
-                    <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.classesTaught')}</span>{teacher.classes.join(', ')}</p>
-                    <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.timingsLabel')}</span>{teacher.timings}</p>
-                  </div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div className="flex items-start justify-between gap-1">
+                      <div>
+                        <h3 className="font-outfit font-black text-slate-900 text-lg leading-tight truncate">
+                          {teacherName}
+                        </h3>
+                        {teacher.villageOrArea && (
+                          <p className="text-[10px] font-black text-brand-600 bg-brand-50 border border-brand-100/60 px-2 py-0.5 rounded-md w-fit mt-0.5 flex items-center gap-0.5">
+                            <span>📍</span>
+                            <span>{teacher.villageOrArea}</span>
+                          </p>
+                        )}
+                        <div className="flex items-center space-x-1.5 mt-0.5">
+                          <StarRating rating={teacher.rating || 0} size={12} />
+                          <span className="text-[10px] text-slate-500 font-extrabold">({teacher.reviewCount || 0})</span>
+                          {teacher.demoAvailable && (
+                            <span className="text-[9px] font-extrabold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-md border border-emerald-100 uppercase tracking-wider">
+                              {t('discovery.demoAvailable')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-1">
-                    <div>
-                      <p className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Monthly Fees</p>
-                      <p className="font-outfit font-black text-brand-600 text-base leading-none mt-0.5">₹{teacher.fees}</p>
+                      {teacher.distance > 0 && (
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg">
+                            {(teacher.distance / 1000).toFixed(1)} km
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <Link
-                      to={`/teacher-profile/${teacher._id}`}
-                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow active:scale-95 transition-all"
-                    >
-                      {t('discovery.viewProfile')}
-                    </Link>
-                  </div>
-                </div>
 
-              </div>
-            ))
+                    <div className="text-xs text-slate-500 space-y-0.5 font-semibold">
+                      <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.subjectsTaught')} </span>{subjectsList}</p>
+                      <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.classesTaught')} </span>{classesList}</p>
+                      <p className="truncate"><span className="font-bold text-slate-600">{t('discovery.timingsLabel')} </span>{timingsText}</p>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-3 border-t border-slate-100 mt-1">
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Monthly Fees</p>
+                        <p className="font-outfit font-black text-brand-600 text-base leading-none mt-0.5">₹{teacher.fees || 0}</p>
+                      </div>
+                      <Link
+                        to={`/teacher-profile/${teacher._id}`}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow active:scale-95 transition-all"
+                      >
+                        {t('discovery.viewProfile')}
+                      </Link>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })
           )}
         </div>
 

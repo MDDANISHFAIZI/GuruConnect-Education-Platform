@@ -166,7 +166,20 @@ export const updateTeacherProfile = async (req, res) => {
       teacher.profileImagePublicId = processedPublicId;
     }
     
-    if (address) teacher.address = address;
+    if (address) {
+      if (typeof address === 'object') {
+        teacher.address = {
+          area: address.area || teachingArea || villageOrArea || teacher.teachingArea || '',
+          city: address.city || city || teacher.city || 'Dhanbad',
+          district: address.district || (teacher.address?.district || ''),
+          state: address.state || state || teacher.state || 'Jharkhand',
+          pincode: address.pincode || (teacher.address?.pincode || ''),
+          formattedAddress: address.formattedAddress || ''
+        };
+      } else {
+        teacher.address = address;
+      }
+    }
     if (villageOrArea) teacher.villageOrArea = villageOrArea;
     if (teachingArea) {
       teacher.teachingArea = teachingArea;
@@ -177,16 +190,28 @@ export const updateTeacherProfile = async (req, res) => {
     if (state) teacher.state = state;
     if (demoAvailable !== undefined) teacher.demoAvailable = demoAvailable;
     
-    // Set coordinates if provided
-    if (coordinates && Array.isArray(coordinates) && coordinates.length === 2 && coordinates[0] && coordinates[1]) {
-      teacher.location = {
-        type: 'Point',
-        coordinates: [Number(coordinates[0]), Number(coordinates[1])]
-      };
+    // Set coordinates if provided (accept [lng, lat] or longitude & latitude)
+    let lngToSet = undefined;
+    let latToSet = undefined;
+    if (coordinates && Array.isArray(coordinates) && coordinates.length === 2) {
+      lngToSet = Number(coordinates[0]);
+      latToSet = Number(coordinates[1]);
+    } else if (req.body.longitude !== undefined && req.body.latitude !== undefined) {
+      lngToSet = Number(req.body.longitude);
+      latToSet = Number(req.body.latitude);
+    }
+
+    if (lngToSet !== undefined && latToSet !== undefined && !isNaN(lngToSet) && !isNaN(latToSet)) {
+      if (lngToSet >= -180 && lngToSet <= 180 && latToSet >= -90 && latToSet <= 90) {
+        teacher.location = {
+          type: 'Point',
+          coordinates: [lngToSet, latToSet]
+        };
+      }
     }
 
     teacher.lastActive = new Date();
-    teacher.status = 'active'; // Force reactivate upon update
+    teacher.status = 'active'; // Reactivate upon update
 
     await teacher.save();
     console.log(`[DEBUG LOG] [TEACHER PROFILE UPDATE] Teacher ID: ${teacher._id} | Photo successfully saved: "${processedPhoto}"`);
@@ -220,6 +245,119 @@ export const updateTeacherProfile = async (req, res) => {
   }
 };
 
+// @desc    Update teacher teaching location specifically
+// @route   PUT /api/teachers/location
+// @access  Private (Teacher)
+export const updateTeacherLocation = async (req, res) => {
+  try {
+    const { longitude, latitude, coordinates, address, area, city, district, state, pincode, formattedAddress } = req.body;
+    
+    let lng = longitude;
+    let lat = latitude;
+    if (coordinates && Array.isArray(coordinates) && coordinates.length === 2) {
+      lng = coordinates[0];
+      lat = coordinates[1];
+    }
+    
+    if (lng === undefined || lat === undefined) {
+      return res.status(400).json({
+        message: {
+          en: 'Coordinates are required: longitude and latitude',
+          hi: 'स्थान निर्देशांक (देशांतर और अक्षांश) आवश्यक हैं'
+        }
+      });
+    }
+    
+    const lngNum = Number(lng);
+    const latNum = Number(lat);
+    if (isNaN(lngNum) || isNaN(latNum) || lngNum < -180 || lngNum > 180 || latNum < -90 || latNum > 90) {
+      return res.status(400).json({
+        message: {
+          en: 'Invalid latitude or longitude coordinates',
+          hi: 'अमान्य अक्षांश या देशांतर निर्देशांक'
+        }
+      });
+    }
+    
+    const teacher = await Teacher.findOne({ user: req.user._id });
+    if (!teacher) {
+      return res.status(404).json({
+        message: {
+          en: 'Teacher profile not found',
+          hi: 'शिक्षक प्रोफ़ाइल नहीं मिली'
+        }
+      });
+    }
+    
+    // Store in strict GeoJSON Point format [longitude, latitude]
+    teacher.location = {
+      type: 'Point',
+      coordinates: [lngNum, latNum]
+    };
+    
+    // Update address structure
+    let addrObj;
+    if (typeof address === 'object' && address !== null) {
+      addrObj = {
+        area: address.area || area || teacher.teachingArea || '',
+        city: address.city || city || teacher.city || 'Dhanbad',
+        district: address.district || district || (teacher.address?.district || ''),
+        state: address.state || state || teacher.state || 'Jharkhand',
+        pincode: address.pincode || pincode || (teacher.address?.pincode || ''),
+        formattedAddress: address.formattedAddress || formattedAddress || ''
+      };
+    } else if (typeof address === 'string' && address.trim()) {
+      addrObj = {
+        area: area || teacher.teachingArea || '',
+        city: city || teacher.city || 'Dhanbad',
+        district: district || '',
+        state: state || teacher.state || 'Jharkhand',
+        pincode: pincode || '',
+        formattedAddress: address
+      };
+    } else {
+      addrObj = {
+        area: area || teacher.teachingArea || '',
+        city: city || teacher.city || 'Dhanbad',
+        district: district || '',
+        state: state || teacher.state || 'Jharkhand',
+        pincode: pincode || '',
+        formattedAddress: formattedAddress || `Lat: ${latNum.toFixed(4)}, Lng: ${lngNum.toFixed(4)}`
+      };
+    }
+    
+    teacher.address = addrObj;
+    if (addrObj.area) {
+      teacher.teachingArea = addrObj.area;
+      teacher.villageOrArea = addrObj.area;
+    }
+    if (addrObj.city) teacher.city = addrObj.city;
+    if (addrObj.state) teacher.state = addrObj.state;
+    teacher.lastActive = new Date();
+    teacher.status = 'active';
+    
+    await teacher.save();
+    
+    return res.json({
+      success: true,
+      message: {
+        en: 'Your teaching location has been saved successfully.',
+        hi: 'आपका शिक्षण स्थान सफलतापूर्वक सहेजा गया है।'
+      },
+      location: teacher.location,
+      address: teacher.address
+    });
+  } catch (error) {
+    console.error('Error updating teacher location:', error);
+    res.status(500).json({
+      message: {
+        en: 'Server error updating location',
+        hi: 'स्थान अपडेट करने में सर्वर त्रुटि'
+      }
+    });
+  }
+};
+
 // Helper: Calculate distance between two coordinates in meters (Haversine formula)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3; // Earth's radius in meters
@@ -236,52 +374,82 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c; // in meters
 };
 
-// @desc    Discover nearby teachers with filters & balanced visibility algorithm
-// @route   POST /api/teachers/nearby
+// @desc    Discover nearby teachers using MongoDB geospatial 2dsphere search
+// @route   GET /api/teachers/nearby or POST /api/teachers/nearby
 // @access  Public
 export const getNearbyTeachers = async (req, res) => {
   try {
-    const { longitude, latitude, maxDistance = 2000, subject, classQuery, mode, feeMax, locationQuery } = req.body;
+    // Read from query string (GET) or request body (POST)
+    const rawLat = req.query.latitude ?? req.query.lat ?? req.body?.latitude ?? req.body?.lat;
+    const rawLng = req.query.longitude ?? req.query.lng ?? req.query.lon ?? req.body?.longitude ?? req.body?.lng ?? req.body?.lon;
+    const rawRadius = req.query.radius ?? req.body?.radius;
+    const rawMaxDistance = req.query.maxDistance ?? req.body?.maxDistance;
+    const subject = req.query.subject ?? req.body?.subject;
+    const classQuery = req.query.classQuery ?? req.query.class ?? req.body?.classQuery ?? req.body?.class;
+    const mode = req.query.mode ?? req.body?.mode;
+    const feeMax = req.query.feeMax ?? req.body?.feeMax;
+    const locationQuery = req.query.locationQuery ?? req.body?.locationQuery;
 
-    if ((!longitude || !latitude) && !locationQuery) {
+    // Convert radius (in km) to meters, default radius = 2 km (2000 meters)
+    let maxDistanceMeters = 2000;
+    if (rawRadius !== undefined && rawRadius !== null && !isNaN(Number(rawRadius))) {
+      maxDistanceMeters = Math.max(100, Number(rawRadius) * 1000);
+    } else if (rawMaxDistance !== undefined && rawMaxDistance !== null && !isNaN(Number(rawMaxDistance))) {
+      maxDistanceMeters = Math.max(100, Number(rawMaxDistance));
+    }
+
+    const hasCoords = rawLat !== undefined && rawLat !== null && rawLng !== undefined && rawLng !== null;
+
+    if (!hasCoords && !locationQuery) {
       return res.status(400).json({
         message: {
-          en: 'Either GPS coordinates or a Village/Area name search query is required.',
-          hi: 'जीपीएस निर्देशांक या गाँव/क्षेत्र का नाम खोजना आवश्यक है।'
+          en: 'Either GPS coordinates (latitude, longitude) or a location query is required.',
+          hi: 'जीपीएस निर्देशांक (अक्षांश, देशांतर) या स्थान खोज आवश्यक है।'
         }
       });
     }
 
-    // DEBUGGING LOGS: Student coordinates or text query
+    let latNum = undefined;
+    let lngNum = undefined;
+
+    if (hasCoords) {
+      latNum = Number(rawLat);
+      lngNum = Number(rawLng);
+
+      if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+        return res.status(400).json({
+          message: {
+            en: 'Invalid latitude or longitude coordinates provided.',
+            hi: 'अमान्य अक्षांश या देशांतर निर्देशांक प्रदान किए गए।'
+          }
+        });
+      }
+    }
+
+    // DEBUGGING LOGS: Student coordinates & search parameters
     console.log("\n=== [DEBUG] GURUCONNECT HYPERLOCAL SEARCH ===");
-    if (longitude && latitude) {
-      console.log(`[STUDENT] Coordinates Received: Lng = ${longitude}, Lat = ${latitude}`);
+    if (hasCoords) {
+      console.log(`[STUDENT] Coordinates: Lat = ${latNum}, Lng = ${lngNum} | Search Radius: ${(maxDistanceMeters / 1000).toFixed(1)} km (${maxDistanceMeters}m)`);
     }
     if (locationQuery) {
-      console.log(`[STUDENT] Text Location Query Received: "${locationQuery}"`);
+      console.log(`[STUDENT] Text Query: "${locationQuery}"`);
     }
-    console.log(`[QUERY PARAMETERS] Max Search Radius: ${maxDistance} meters | Subject: ${subject || 'None'} | Class: ${classQuery || 'None'}`);
 
-    // 1. AUTO-DEACTIVATION CHECK: Set status to inactive for teachers inactive for more than 15 days
-    const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000);
-    await Teacher.updateMany(
-      { status: 'active', lastActive: { $lt: fifteenDaysAgo } },
-      { status: 'inactive' }
-    );
-
-    // 2. Query MongoDB for active teachers nearby
+    // Base query: Only return teachers that are not explicitly inactive
     const query = {
-      status: 'active'
+      status: { $ne: 'inactive' }
     };
 
-    if (longitude && latitude && !locationQuery) {
+    // Geospatial search via MongoDB $near with 2dsphere index
+    if (hasCoords && !locationQuery) {
+      query['location.coordinates'] = { $exists: true, $type: 'array', $ne: [] };
       query.location = {
         $near: {
           $geometry: {
             type: 'Point',
-            coordinates: [Number(longitude), Number(latitude)]
+            coordinates: [lngNum, latNum] // GeoJSON order: [longitude, latitude]
           },
-          $maxDistance: Number(maxDistance)
+          $maxDistance: maxDistanceMeters
         }
       };
     }
@@ -293,11 +461,14 @@ export const getNearbyTeachers = async (req, res) => {
         { locality: { $regex: locationQuery, $options: 'i' } },
         { city: { $regex: locationQuery, $options: 'i' } },
         { state: { $regex: locationQuery, $options: 'i' } },
+        { 'address.formattedAddress': { $regex: locationQuery, $options: 'i' } },
+        { 'address.area': { $regex: locationQuery, $options: 'i' } },
+        { 'address.city': { $regex: locationQuery, $options: 'i' } },
         { address: { $regex: locationQuery, $options: 'i' } }
       ];
     }
 
-    // Apply additional search filters
+    // Apply additional academic filters
     if (subject) {
       query.subjects = { $regex: subject, $options: 'i' };
     }
@@ -318,113 +489,111 @@ export const getNearbyTeachers = async (req, res) => {
       query.fees = { $lte: Number(feeMax) };
     }
 
-    // DEBUGGING LOGS: Print total tutors in system and list coordinate alignments
-    const allSystemTeachers = await Teacher.find({}).populate('user', 'name');
-    console.log(`[DIAGNOSTICS] Total registered tutors in collection: ${allSystemTeachers.length}`);
-    
-    allSystemTeachers.forEach((t) => {
-      if (t.location?.coordinates && t.location.coordinates.length === 2 && longitude && latitude) {
-        const distFromStudent = calculateDistance(
-          Number(latitude),
-          Number(longitude),
-          t.location.coordinates[1],
-          t.location.coordinates[0]
-        );
-        console.log(`- Tutor "${t.user?.name}": Coordinates stored = [${t.location.coordinates[0]}, ${t.location.coordinates[1]}] | Calculated Distance = ${distFromStudent.toFixed(1)} meters | Status = ${t.status}`);
-      } else {
-        console.log(`- Tutor "${t.user?.name}": Location = "${t.villageOrArea || 'No Village/Area'}" | Status = ${t.status}`);
-      }
-    });
+    // Fetch teachers with populated user info
+    let teachers = await Teacher.find(query)
+      .populate('user', 'name email phone profilePhoto profileImage lastLogin createdAt');
 
-    let teachers = await Teacher.find(query).populate('user', 'name email phone profilePhoto profileImage lastLogin createdAt');
-    console.log(`[QUERY RESULT] Active tutors found: ${teachers.length}\n`);
+    console.log(`[QUERY RESULT] Qualified tutors matching criteria: ${teachers.length}`);
 
-    // 3. If no teachers are found nearby, log the search request under AreaRequest Waitlist
+    // Filter out any teacher records that lack valid coordinates when doing coordinate-based search
+    if (hasCoords && !locationQuery) {
+      teachers = teachers.filter(t => (
+        t.location?.coordinates &&
+        Array.isArray(t.location.coordinates) &&
+        t.location.coordinates.length === 2 &&
+        !isNaN(t.location.coordinates[0]) &&
+        !isNaN(t.location.coordinates[1])
+      ));
+    }
+
+    // Handle empty results
     if (teachers.length === 0) {
-      if (longitude && latitude) {
-        // Find if there is an area request within 500m to group them, otherwise make new one
-        const closeRequest = await AreaRequest.findOne({
-          location: {
-            $near: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [Number(longitude), Number(latitude)]
-              },
-              $maxDistance: 500 // 500m proximity grouping
-            }
-          }
-        });
-
-        if (closeRequest) {
-          closeRequest.requestCount += 1;
-          closeRequest.timestamp = new Date();
-          await closeRequest.save();
-        } else {
-          await AreaRequest.create({
+      if (hasCoords) {
+        // Log demand request if no teacher is nearby
+        try {
+          const closeRequest = await AreaRequest.findOne({
             location: {
-              type: 'Point',
-              coordinates: [Number(longitude), Number(latitude)]
-            },
-            address: locationQuery || `Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`
+              $near: {
+                $geometry: {
+                  type: 'Point',
+                  coordinates: [lngNum, latNum]
+                },
+                $maxDistance: 500
+              }
+            }
           });
+
+          if (closeRequest) {
+            closeRequest.requestCount += 1;
+            closeRequest.timestamp = new Date();
+            await closeRequest.save();
+          } else {
+            await AreaRequest.create({
+              location: {
+                type: 'Point',
+                coordinates: [lngNum, latNum]
+              },
+              address: locationQuery || `Lat: ${latNum.toFixed(4)}, Lng: ${lngNum.toFixed(4)}`
+            });
+          }
+        } catch (reqErr) {
+          console.warn('[AREA REQUEST LOG WARNING]', reqErr.message);
         }
       }
 
       return res.status(200).json({
         teachers: [],
         message: 'no_teachers_nearby',
-        coordinates: longitude && latitude ? [longitude, latitude] : null
+        radius: Number((maxDistanceMeters / 1000).toFixed(1)),
+        coordinates: hasCoords ? [lngNum, latNum] : null
       });
     }
 
-    // 4. BALANCED EXPOSURE ALGORITHM (Blending rating, proximity, activity, and new joiner status)
-    const scoredTeachers = teachers.map((t) => {
+    // Process each teacher: calculate precise distance & format address
+    const processedTeachers = teachers.map((t) => {
       const teacherObj = t.toObject();
-      
-      // Calculate precise distance using Haversine formula
+
       let dist = 0;
-      if (longitude && latitude && t.location?.coordinates && t.location.coordinates.length === 2) {
+      if (hasCoords && t.location?.coordinates && t.location.coordinates.length === 2) {
         dist = calculateDistance(
-          Number(latitude),
-          Number(longitude),
+          latNum,
+          lngNum,
           t.location.coordinates[1],
           t.location.coordinates[0]
         );
       }
-      teacherObj.distance = dist;
+      teacherObj.distance = Math.round(dist); // Distance in meters
+      teacherObj.distanceKm = Number((dist / 1000).toFixed(2)); // Distance in km (e.g. 0.8)
+      teacherObj.formattedDistance = dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`;
 
-      // Factors for composite score
-      const maxDistAllowed = Number(maxDistance);
-      const proximityScore = (longitude && latitude) ? (1 - (dist / maxDistAllowed)) : 1; // 1 = closest, 0 = at boundary
-      const ratingScore = t.rating / 5; // 0 to 1
-
-      // Newness Boost (Created in the last 30 days)
-      const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
-      const isNew = (Date.now() - new Date(t.user.createdAt).getTime()) < thirtyDaysInMs;
-      const newnessScore = isNew ? 1 : 0;
-
-      // Activity Boost (Active within last 24h = 1.0, last 7 days = 0.5, else 0)
-      const oneDayInMs = 24 * 60 * 60 * 1000;
-      const sevenDaysInMs = 7 * oneDayInMs;
-      const lastActiveDiff = Date.now() - new Date(t.lastActive).getTime();
-      const activityScore = lastActiveDiff < oneDayInMs ? 1 : lastActiveDiff < sevenDaysInMs ? 0.5 : 0;
-
-      // Composite Exposure Score S (Proximity=40%, Rating=30%, Newness=20%, Activity=10%)
-      const exposureScore = (proximityScore * 0.4) + (ratingScore * 0.3) + (newnessScore * 0.2) + (activityScore * 0.1);
-      teacherObj.exposureScore = exposureScore;
+      // Formatted address for display
+      let formattedAddress = '';
+      if (typeof t.address === 'object' && t.address !== null) {
+        formattedAddress = t.address.formattedAddress || 
+          [t.address.area, t.address.city, t.address.state].filter(Boolean).join(', ') ||
+          t.teachingArea || t.city || 'Teaching Center';
+      } else if (typeof t.address === 'string' && t.address !== 'Update Address') {
+        formattedAddress = t.address;
+      } else {
+        formattedAddress = [t.teachingArea, t.city, t.state].filter(Boolean).join(', ') || 'Local Teaching Center';
+      }
+      teacherObj.formattedAddress = formattedAddress;
 
       return teacherObj;
     });
 
-    // Sort by exposure score descending so new/active local teachers get premium visibility
-    scoredTeachers.sort((a, b) => b.exposureScore - a.exposureScore);
+    // CRITICAL: Sort strictly by nearest distance first (Distance Ascending)
+    if (hasCoords) {
+      processedTeachers.sort((a, b) => a.distance - b.distance);
+    }
 
     res.json({
-      teachers: scoredTeachers,
-      coordinates: longitude && latitude ? [longitude, latitude] : null
+      teachers: processedTeachers,
+      radius: Number((maxDistanceMeters / 1000).toFixed(1)),
+      coordinates: hasCoords ? [lngNum, latNum] : null
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error in getNearbyTeachers:', error);
     res.status(500).json({
       message: {
         en: 'Server error searching teachers',

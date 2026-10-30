@@ -90,9 +90,75 @@ export const registerUser = async (req, res) => {
         });
       }
       
-      // If teacher, create a skeletal teacher profile (they will populate it in dashboard)
+      // If teacher, create teacher profile with captured location or empty if unprovided
       if (role === 'teacher') {
-        await Teacher.create({
+        const {
+          location,
+          coordinates,
+          longitude,
+          latitude,
+          address,
+          teachingArea,
+          villageOrArea,
+          area,
+          city,
+          state,
+          district,
+          pincode,
+          formattedAddress
+        } = req.body;
+
+        // Parse coordinates
+        let teacherLocation = undefined;
+        let coords = coordinates || location?.coordinates;
+        if (!coords && longitude !== undefined && latitude !== undefined) {
+          coords = [Number(longitude), Number(latitude)];
+        }
+
+        if (coords && Array.isArray(coords) && coords.length === 2) {
+          const lng = Number(coords[0]);
+          const lat = Number(coords[1]);
+          // Strict geospatial coordinate validation: lng [-180, 180], lat [-90, 90]
+          if (!isNaN(lng) && !isNaN(lat) && lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) {
+            teacherLocation = {
+              type: 'Point',
+              coordinates: [lng, lat]
+            };
+          }
+        }
+
+        // Structure the address object
+        let teacherAddress;
+        if (typeof address === 'object' && address !== null) {
+          teacherAddress = {
+            area: address.area || teachingArea || villageOrArea || area || 'Teaching Area',
+            city: address.city || city || 'Dhanbad',
+            district: address.district || district || '',
+            state: address.state || state || 'Jharkhand',
+            pincode: address.pincode || pincode || '',
+            formattedAddress: address.formattedAddress || ''
+          };
+        } else if (typeof address === 'string' && address.trim()) {
+          teacherAddress = {
+            area: teachingArea || villageOrArea || area || 'Teaching Area',
+            city: city || 'Dhanbad',
+            district: district || '',
+            state: state || 'Jharkhand',
+            pincode: pincode || '',
+            formattedAddress: address
+          };
+        } else {
+          teacherAddress = {
+            area: teachingArea || villageOrArea || area || 'Teaching Area',
+            city: city || 'Dhanbad',
+            district: district || '',
+            state: state || 'Jharkhand',
+            pincode: pincode || '',
+            formattedAddress: formattedAddress || 'Location pending setup'
+          };
+        }
+
+        const teacherPayload = {
           user: user._id,
           profilePhoto: processedPhoto,
           profileImage: processedPhoto,
@@ -106,12 +172,18 @@ export const registerUser = async (req, res) => {
           qualification: 'Graduate',
           experience: 0,
           mode: 'offline',
-          address: 'Update Address',
-          location: {
-            type: 'Point',
-            coordinates: [77.2090, 28.6139] // Default coordinates: New Delhi
-          }
-        });
+          address: teacherAddress,
+          teachingArea: teacherAddress.area || 'Teaching Area',
+          villageOrArea: teacherAddress.area || 'Teaching Area',
+          city: teacherAddress.city || 'Dhanbad',
+          state: teacherAddress.state || 'Jharkhand'
+        };
+
+        if (teacherLocation) {
+          teacherPayload.location = teacherLocation;
+        }
+
+        await Teacher.create(teacherPayload);
       }
 
       // Send OTP verification email via Resend
